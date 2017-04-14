@@ -76,7 +76,6 @@ Shell.sendNetworkCommand = function(outpkt)
 					if (Header == "CommandResponse") and (Sender:lower() == outpkt.Receiver:lower()) then
 						if (packet.Data ~= nil) then
 							if (type(packet.Data):lower() == "table") then
-								print("Response!")
 								Shell.handleResponse(packet.Data)
 								return
 							end

@@ -12,7 +12,6 @@ Commands.registerCommand = function(name, func, helpDesc, helpArgs)
 end
 
 Commands.executeCommand = function(name, isNetwork, ...)
-	print("("..tostring(name)..")")
 	if (Commands.commandList[name] ~= nil) then
 		local success, response = Commands.commandList[name].Function(...)
 		if (not success) then
@@ -107,11 +106,11 @@ Commands.registerCommand("setDeviceDriver", deviceNameFunc, "Sets driver of loca
 
 Commands.registerCommand("listDeviceDrivers", function() local res = responseTbl() for i,p in pairs(Device.driverList) do print(i.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
 
-Commands.registerCommand("memory", function() print(OS.memoryMsgStr()) return true end, "Displays memory status", "")
+Commands.registerCommand("memory", function() local res = responseTbl() print(OS.memoryMsgStr()) res.print(OS.memoryMsgStr()) return true, res end, "Displays memory status", "")
 
-Commands.registerCommand("shutdown", function() Device.saveConfig() Device.Driver.powerOff() computer.shutdown() return true end, "Soft poweroff", "")
+Commands.registerCommand("shutdown", function() network.sendShutdownPacket() Device.saveConfig() Device.Driver.powerOff() computer.shutdown() return true end, "Soft poweroff", "")
 
-Commands.registerCommand("restart", function() Device.saveConfig() Device.Driver.powerOff() computer.shutdown(true) return true end, "Soft reboot", "")
+Commands.registerCommand("restart", function() network.sendShutdownPacket() Device.saveConfig() Device.Driver.powerOff() computer.shutdown(true) return true end, "Soft reboot", "")
 
 Commands.registerCommand("cls", function() term.clear() return true end, "Clears the screen", "")
 

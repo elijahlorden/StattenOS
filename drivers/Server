@@ -33,7 +33,9 @@ end
 
 Server.listDeviceCmd = function()
 	local str = ""
-	
+	for i,p in pairs(Server.deviceList) do
+		
+	end
 	
 end
 
@@ -42,7 +44,7 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
 	if (not packet.Header) or (not packet.Sender) or (not packet.SenderType) then return end
-	--if (packet.Header == "Keepalive") and (packet.Sender ~= nil) then
+	if (packet.Header ~= "Shutdown") then
 		if (Server.deviceList[packet.Sender] ~= nil) then
 			Server.deviceList[packet.Sender].ConnectionTime = 0
 		else
@@ -50,7 +52,13 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 			Shell.print("Network Device "..packet.Sender.." ("..packet.SenderType..") Connected")
 			computer.beep(Server.connectBeep)
 		end
-	--end
+	elseif (packet.Header == "Shutdown") then
+		if (Server.deviceList[packet.Sender] ~= nil) then
+			Server.deviceList[packet.Sender] = nil
+			Shell.print(packet.Sender.." Disconnected")
+			computer.beep(Server.disconnectBeep)
+		end
+	end
 end
 
 Server.tickConnections = function()

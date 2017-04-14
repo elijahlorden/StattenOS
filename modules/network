@@ -51,6 +51,10 @@ network.sendKeepalivePacket = function()
 	network.sendPacket(network.receivePort, packet, false)
 end
 
+network.sendShutdownPacket = function()
+	local packet = {Header = "Shutdown"}
+	network.sendPacket(network.receivePort, packet, false)
+end
 
 
 

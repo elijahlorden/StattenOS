@@ -91,6 +91,8 @@ Device.init = function()
 	--set label
 	local dProxy = fs.drive.letterToProxy(initDrive)
 	dProxy.setLabel(Device.currentConfig.Name)
+	--send notification to server
+	network.sendKeepalivePacket()
 end
 
 
