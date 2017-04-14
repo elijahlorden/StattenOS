@@ -1,0 +1,130 @@
+local Packager = {}
+
+Packager.devKey = "b135baaf9837ed1ec7bcb629eaf1adbc"
+Packager.loggedUsr = "elijahlorden"
+Packager.loggedPss = "elijah24680"
+
+Packager.packageIntoTable = function()
+	local tbl = {Directories = {}}
+	print("Packaging OS...")
+	Packager.processFolder("/", tbl)
+	print("OS packaged")
+	return tbl
+end
+
+Packager.processFolder = function(path, tbl)
+	table.insert(tbl.Directories, path)
+	local list = filesystem.list(path)
+	for f in list do
+		if (filesystem.isDirectory(f)) then
+			Packager.processFolder(path..f.."/", tbl)
+		else
+			if (f ~= "config") then
+				print("Packaging "..path..f)
+				local str = Packager.getFileString(path..f)
+				tbl[path..f] = str
+			end
+		end
+	end
+end
+
+Packager.getFileString = function(path)
+	local handle, reason = filesystem.open(path)
+	if (not handle) then
+		print("Unable to read file "..path.."("..reason..")")
+		return
+	end
+	local buffer = ""
+	repeat
+	local data, reason = filesystem.read(handle)
+	if (not data) and (reason) then
+		print("Unable to read file "..path.."("..reason..")")
+		return
+    end
+	buffer = buffer..(data or "")
+	until not data
+	filesystem.close(handle)
+	return buffer
+end
+
+Packager.joinList = function(list)
+	local s = ""
+	for _,p in pairs(list) do
+		s = s..p
+	end
+	return s
+end
+
+Packager.request = function(address, args)
+	if not component.isAvailable("internet") then
+		print("No internet card, unable to send HTTP request")
+		return
+	end
+	local internet = component.internet
+	local result, request = pcall(internet.request, address, args)
+	--print(result)
+	if (result) then
+		local buffer = ""
+		repeat
+			local data, reason = request.read()
+			if (not data) and (reason) then error(reason) end
+			buffer = buffer..(data or "")
+		until not data
+		request.close()
+		if (string.match(buffer, "^Bad API request, ")) then
+			print("HTTP Request Failed: "..buffer)
+			return
+		end
+		return buffer
+	else
+		print("HTTP Request Failed")
+	end
+end
+
+Packager.writeFile = function(proxy, path, str)
+	local handle = proxy.open(path, "w")
+	if (not handle) then print("Unable to create file "..path) end
+	proxy.write(handle, str)
+end
+
+Packager.wipeDriveForOSInstall = function(proxy, path)
+	for _,f in pairs(proxy.list(path)) do
+		if (f ~= "config") then
+			proxy.remove(path..f)
+			print("Deleting "..f)
+		end
+	end
+end
+
+Packager.installToDrive = function(driveLetter)
+	local proxy = fs.drive.letterToProxy(driveLetter)
+	if (not proxy) then print("Drive does not exist") return false end
+	print("Wiping drive "..driveLetter)
+	Packager.wipeDriveForOSInstall(proxy, "/")
+	local packagedOS = Packager.packageIntoTable()
+	for i,p in pairs(packagedOS.Directories) do
+		proxy.makeDirectory(p)
+	end
+	for i,p in pairs(packagedOS) do
+		print("Installing "..i)
+		if (type(p):lower() == "string") then
+			Packager.writeFile(proxy, i, p)
+		end
+	end
+	return true
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+return Packager

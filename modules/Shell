@@ -1,0 +1,126 @@
+Shell = {}
+
+Shell.ShellBacklog = {{Type = "print", Text = "\n== Init Shell =="}} -- {Type = "print", Text = " "}
+
+Shell.promptOpen = false
+
+Shell.prompt = ">>> "
+Shell.history = {}
+
+Shell.print = function(str)
+	table.insert(Shell.ShellBacklog, {Type = "print", Text = str})
+end
+
+Shell.stepInterval = 0.05
+Shell.step = function()
+	if (#Shell.ShellBacklog > 0) and (not Shell.promptOpen) then
+		repeat
+			local p = Shell.ShellBacklog[1]
+			if (p.Type == "print") then
+				print(p.Text)
+			end
+			table.remove(Shell.ShellBacklog, 1)
+		until (#Shell.ShellBacklog == 0) or (Shell.promptOpen)
+	end
+end
+
+Shell.init = function()
+	event.listen("key_down", Shell.keyDownEventListener)
+end
+
+Shell.keyDownEventListener = function(event, address, key, code, plr)
+	if (Shell.promptOpen) then return end
+	Shell.promptOpen = true
+	term.write("Local"..Shell.prompt)
+	local strIn = term.read(Shell.history):gsub("\n", "")
+	if (strIn == "") or (strIn == " ") then Shell.promptOpen = false return end
+	local strTbl = text.split(strIn, " ")
+	if (not strTbl) then Shell.promptOpen = false return end
+	if (#strTbl < 1) then Shell.promptOpen = false return end
+	if (Shell.networkCommand(strTbl)) then Shell.promptOpen = false return end
+	local startText = strTbl[1]
+	table.remove(strTbl, 1)
+	local success, message = pcall(function() Commands.executeCommand(startText, false, table.unpack(strTbl)) end)
+	if (not success) then print(message) end
+	Shell.promptOpen = false
+end
+
+Shell.networkCommand = function(tArgs)
+	if (not string.find(tArgs[1], ":")) then return false end
+	local arg1 = text.split(tArgs[1], ":")
+	table.remove(tArgs, 1)
+	if (#arg1 ~= 2) then return false end
+	local devName = arg1[1]
+	local devCmd = arg1[2]
+	if (devName == "") or (devName == " ") or (devCmd == "") or (devCmd == " ") then return false end
+	print("("..devName..")")
+	local packet = {Header = "RunCommand", Receiver = devName, CommandStr = Shell.appendCmd(devCmd, tArgs)}
+	Shell.sendNetworkCommand(packet)
+	
+	
+	return true
+end
+
+Shell.sendNetworkCommand = function(outpkt)
+	network.sendPacket(network.receivePort, outpkt, false)
+	-- Wait for response
+	for i=1,20 do
+		local event, localNetworkCard, remoteAddress, port, distance, inpkt = event.pull(0.5, "modem_message")
+		if (event) then
+			local packet = serialization.unserialize(inpkt)
+			local Receiver = tostring(packet.Receiver) or ""
+			local Header = tostring(packet.Header) or ""
+			local Sender = tostring(packet.Sender) or ""
+			if (packet) then
+				if (Receiver ~= "") and (Sender ~= "") then
+					if (Header == "CommandResponse") and (Sender:lower() == outpkt.Receiver:lower()) then
+						if (packet.Data ~= nil) then
+							if (type(packet.Data):lower() == "table") then
+								print("Response!")
+								Shell.handleResponse(packet.Data)
+								return
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	print("No response received.")
+end
+
+Shell.handleResponse = function(data)
+	for i,p in pairs(data) do
+		if (p.Type ~= nil) then
+			if (p.Type == "print") then
+				print(p.text)
+			elseif (p.Type == "printPaged") then
+				printPaged(p.text)
+			end
+		end
+	end
+end
+
+Shell.appendCmd = function(name, tbl)
+	local str = name.." "
+	for _,s in pairs(tbl) do
+		str = str..s.." "
+	end
+	return str
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+return Shell

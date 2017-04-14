@@ -1,0 +1,58 @@
+local Tablet = {}
+
+Tablet.init = function()
+	event.timer(5, Tablet.sendKeepalive, math.huge)
+end
+
+Tablet.load = function()
+	
+end
+
+Tablet.registerCommands = function()
+	
+end
+
+Tablet.setup = function()
+	
+end
+
+Tablet.sendKeepalive = function()
+	network.sendKeepalivePacket()
+end
+
+Tablet.powerOff = function()
+	
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+return Tablet

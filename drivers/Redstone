@@ -1,0 +1,50 @@
+local Server = {}
+
+Server.init = function()
+	
+end
+
+Server.load = function()
+	
+end
+
+Server.registerCommands = function()
+	
+end
+
+Server.setup = function()
+	
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+return Server

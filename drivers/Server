@@ -1,0 +1,94 @@
+local Server = {}
+
+Server.deviceList = {[network.acceptedServerName] = {Name = network.acceptedServerName, Type = "Server", ConnectionTime = 0, Address = "local"}} -- Name = {Name = name, Type = driverName, ConnectionTime = 0, Address = address}
+
+
+Server.tickInterval = 0.1
+Server.deviceTimeout = 20
+
+Server.connectBeep = 1500
+Server.disconnectBeep = 300
+
+Server.init = function()
+	event.timer(Server.tickInterval, Server.tickConnections, math.huge)
+	network.registerNetworkListener(Server.networkListener)
+end
+
+Server.load = function()
+	
+end
+
+Server.setup = function()
+	
+end
+
+
+Server.powerOff = function()
+	
+end
+
+Server.registerCommands = function()
+	
+end
+
+Server.listDeviceCmd = function()
+	local str = ""
+	
+	
+end
+
+Server.networkListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	local packet = serialization.unserialize(inpkt)
+	if (not packet) then return end
+	if (not packet.Header) or (not packet.Sender) or (not packet.SenderType) then return end
+	--if (packet.Header == "Keepalive") and (packet.Sender ~= nil) then
+		if (Server.deviceList[packet.Sender] ~= nil) then
+			Server.deviceList[packet.Sender].ConnectionTime = 0
+		else
+			Server.deviceList[packet.Sender] = {Name = packet.Sender, Type = packet.SenderType, ConnectionTime = 0, Address = remoteAddress}
+			Shell.print("Network Device "..packet.Sender.." ("..packet.SenderType..") Connected")
+			computer.beep(Server.connectBeep)
+		end
+	--end
+end
+
+Server.tickConnections = function()
+	for i,d in pairs(Server.deviceList) do
+		if (i ~= network.acceptedServerName) then
+			d.ConnectionTime = d.ConnectionTime + Server.tickInterval
+			--Shell.print(d.Name.." : "..d.ConnectionTime)
+			if (d.ConnectionTime > 20) then Server.deviceList[i] = nil Shell.print(i.." Disconnected") computer.beep(Server.disconnectBeep) end
+		end
+	end
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+return Server

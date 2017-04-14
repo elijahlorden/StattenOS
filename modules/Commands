@@ -1,0 +1,161 @@
+Commands = {}
+
+Commands.commandList = {}
+
+Commands.registerCommand = function(name, func, helpDesc, helpArgs)
+	local tbl = {}
+	tbl.Name = name
+	tbl.Function = func
+	tbl.Description = helpDesc or ""
+	tbl.ArgumentMessage = helpArgs or ""
+	Commands.commandList[name] = tbl
+end
+
+Commands.executeCommand = function(name, isNetwork, ...)
+	print("("..tostring(name)..")")
+	if (Commands.commandList[name] ~= nil) then
+		local success, response = Commands.commandList[name].Function(...)
+		if (not success) then
+			print("Command usage: "..name.." "..Commands.commandList[name].ArgumentMessage)
+			local res = responseTbl()
+			res.print("Command usage: "..name.." "..Commands.commandList[name].ArgumentMessage)
+			return res
+		else
+			return response
+		end
+	else
+		print("'"..tostring(name).."' is not a valid Command.  For a list of Commands, run 'help'")
+		local res = responseTbl()
+		res.print("'"..tostring(name).."' is not a valid Command.  For a list of Commands, run 'help'")
+		return res
+	end
+end
+
+
+
+
+
+
+
+
+function responseTbl()
+	local tbl = {}
+	tbl.contents = {}
+	tbl.print = function(text)
+		table.insert(tbl.contents, {Type = "print", text = text})
+	end
+	tbl.printPaged = function(text)
+		table.insert(tbl.contents, {Type = "printPaged", text = text})
+	end
+	tbl.getResponse = function() return tbl.contents end
+	return tbl
+end
+
+----------------------------------------------------------------- Internal Commands
+local helpFunc = function(cmdName) -- HELP
+	local response = responseTbl()
+	if (cmdName == nil) then
+		local str = ""
+		for i,p in pairs(Commands.commandList) do
+			str = str..p.Name.."  ["..p.Description.."]\n"
+		end
+		printPaged(str)
+		response.printPaged(str)
+	else
+		if (Commands.commandList[cmdName] ~= nil) then
+			print("Usage: "..Commands.commandList[cmdName].Name.." "..Commands.commandList[cmdName].ArgumentMessage)
+			response.print("Usage: "..Commands.commandList[cmdName].Name.." "..Commands.commandList[cmdName].ArgumentMessage)
+		else
+			print("'"..tostring(cmdName).."' is not a valid Command.  For a list of Commands, run 'help'")
+			response.print("'"..tostring(cmdName).."' is not a valid Command.  For a list of Commands, run 'help'")
+		end
+	end
+	return true, response
+end
+
+Commands.registerCommand("help", helpFunc, "Displays command list", "[command]")
+
+local deviceNameFunc = function(newName) -- SET DEVICE NAME
+	local response = responseTbl()
+	local newName = tostring(newName)
+	if (newName == nil) or (newName == "") or (newName == " ") then return false end
+	if (newName:len() > 25) or (newName:len() < 5) then print("Name must 5 to 25 characters long") response.print("Name must 5 to 25 characters long") return true end
+	Device.currentConfig.Name = newName
+	print("Device name changed to '"..Device.currentConfig.Name.."'")
+	response.print("Device name changed to '"..Device.currentConfig.Name.."'")
+	Device.saveConfig()
+	return true, response
+end
+
+Commands.registerCommand("setDeviceName", deviceNameFunc, "Sets name of local device", "name")
+
+local deviceNameFunc = function(newDriver) -- SET DEVICE DRIVER
+	local response = {}
+	local newDriver = tostring(newDriver)
+	if (newDriver == nil) or (newDriver == "") or (newDriver == " ") then return false end
+	if (Device.driverList[newDriver] == nil) then print("Driver does not exist") response.print("Driver does not exist") end
+	Device.currentConfig.Driver = newDriver
+	print("Device driver changed to '"..Device.currentConfig.Driver.."'")
+	print("A reboot will be required for the change to take effect")
+	response.print("Device driver changed to '"..Device.currentConfig.Driver.."'")
+	response.print("A reboot will be required for the change to take effect")
+	Device.saveConfig()
+	return true, response
+end
+
+Commands.registerCommand("setDeviceDriver", deviceNameFunc, "Sets driver of local device", "driverName")
+
+Commands.registerCommand("listDeviceDrivers", function() local res = responseTbl() for i,p in pairs(Device.driverList) do print(i.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
+
+Commands.registerCommand("memory", function() print(OS.memoryMsgStr()) return true end, "Displays memory status", "")
+
+Commands.registerCommand("shutdown", function() Device.saveConfig() Device.Driver.powerOff() computer.shutdown() return true end, "Soft poweroff", "")
+
+Commands.registerCommand("restart", function() Device.saveConfig() Device.Driver.powerOff() computer.shutdown(true) return true end, "Soft reboot", "")
+
+Commands.registerCommand("cls", function() term.clear() return true end, "Clears the screen", "")
+
+local listDrives = function() -- LIST DRIVES
+	local response = responseTbl()
+	local driveIter = fs.drive.list()
+	for d in driveIter do
+		pcall(function()
+			local proxy = fs.drive.letterToProxy(d)
+			if (proxy) then
+				print(d.." "..("["..proxy.getLabel().."]" or "[No Label]").." ("..fs.drive.toAddress(d)..")")
+				response.print(d.." "..("["..proxy.getLabel().."]" or "[No Label]").." ("..fs.drive.toAddress(d)..")")
+			end
+		end)
+	end
+	return true, response
+end
+
+Commands.registerCommand("listDrives", listDrives, "List currently attached drives", "")
+
+local installFunc = function(driveLetter) -- INSTALL TO DRIVE
+	local response = responseTbl()
+	driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
+	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
+	print("Attempting to install OS on drive "..driveLetter)
+	response.print("Attempting to install OS on drive "..driveLetter)
+	local success = Packager.installToDrive(driveLetter)
+	if (success) then response.print("Installation successful") else response.print("Installation Failed") end
+	return true, response
+end
+
+Commands.registerCommand("install", installFunc, "Install OS to attached drive", "driveLetter")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+return Commands

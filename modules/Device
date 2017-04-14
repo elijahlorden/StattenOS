@@ -1,0 +1,133 @@
+local Device = {}
+
+Device.driverList = {
+	Server = {Name = "Server", desc = "Central control server for networked devices", file = "Server"};
+	Redstone = {Name = "Redstone", desc = "Hub for controlling redstone signals", file = "Redstone"};
+	Tablet = {Name = "Tablet", desc = "Remote control terminal", file = "Tablet"};
+}
+
+Device.currentConfig = {
+	Name = computer.address():sub(1,8);
+	Driver = "Server";
+}
+
+Device.Driver = nil
+
+Device.loadConfig = function()
+	local str = Packager.getFileString("/config")
+	if (not str) then print("'/config' does not exist, creating new configuration file") return end
+	Device.currentConfig = serialization.unserialize(str) or Device.currentConfig
+	return true
+end
+
+Device.saveConfig = function()
+	local str = serialization.serialize(Device.currentConfig)
+	local handle, reason = filesystem.open("/config", "w")
+	if (not handle) then
+		print("Unable to open file ".."/config".."("..reason..")")
+		return false
+	end
+	filesystem.write(handle, str)
+	filesystem.close(handle)
+	return true
+end
+
+Device.commandListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	local packet = serialization.unserialize(inpkt)
+	if (not packet) then return end
+	if (not packet.Header) then return end
+	if (not packet.Receiver) or (not packet.Sender) then return end
+	packet.Receiver = tostring(packet.Receiver) or ""
+	packet.Sender = tostring(packet.Sender) or ""
+	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
+	if (packet.Header == "RunCommand") then
+		local cmd = tostring(packet.CommandStr) or ""
+		Shell.print(packet.Sender..Shell.prompt..packet.CommandStr)
+		OS.sleep(0.1)
+		local strTbl = text.split(cmd, " ")
+		if (not strTbl) then Device.commandFailResponse(packet.Sender) return end
+		if (#strTbl < 1) then Device.commandFailResponse(packet.Sender) return end
+		local startText = strTbl[1]
+		table.remove(strTbl, 1)
+		local newStrTbl = {}
+		for i,p in pairs(strTbl) do
+			if (p ~= "") and (p ~= " ") and (p ~= nil) then
+				table.insert(newStrTbl, p)
+			end
+		end
+		local success, response = pcall(function() return Commands.executeCommand(startText, true, table.unpack(newStrTbl)) end)
+		if (success) then
+			Device.commandResponse(packet.Sender, response)
+		else
+			Device.commandResponse(packet.Sender, {{Type = "print", text = response}})
+		end
+	end
+end
+
+Device.commandResponse = function(deviceName, resTbl)
+	local response
+	if (not resTbl) then response = {{Type = "print", text = "Command executed"}} else response = resTbl.getResponse() end
+	network.sendPacket(network.receivePort, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = response}, false)
+end
+
+Device.commandFailResponse = function(deviceName)
+	network.sendPacket(network.receivePort, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = {{Type = "print", text = "Internal Error"}}}, false)
+end
+
+Device.init = function()
+	Device.loadConfig()
+	print("Loading Device Driver '"..Device.currentConfig.Driver.."'")
+	print("Device Name: "..Device.currentConfig.Name)
+	local driverPath = "/drivers/"..Device.currentConfig.Driver
+	if (not filesystem.exists(driverPath)) then print("Unable to load driver, defaulting to generic device") return end
+	Device.Driver = dofile(driverPath)
+	if (not Device.Driver) then print("Unable to load driver, defaulting to generic device") return end
+	Device.Driver.load()
+	Device.Driver.init()
+	Device.Driver.registerCommands()
+	Device.saveConfig()
+	network.registerNetworkListener(Device.commandListener)
+	--set label
+	local dProxy = fs.drive.letterToProxy(initDrive)
+	dProxy.setLabel(Device.currentConfig.Name)
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+return Device
