@@ -1,5 +1,5 @@
 OS = {}
-OS.Name = "UnnamedOS"
+OS.Name = "StattenOS"
 OS.Version = "0.0"
 OS.modules = {}
 
@@ -93,6 +93,19 @@ local function runfile(file, ...)
 	end
 end
 
+function newResponse()
+	local tbl = {}
+	tbl.contents = {}
+	tbl.print = function(text)
+		table.insert(tbl.contents, {Type = "print", text = text})
+	end
+	tbl.printPaged = function(text)
+		table.insert(tbl.contents, {Type = "printPaged", text = text})
+	end
+	tbl.getResponse = function() return tbl.contents end
+	return tbl
+end
+
 OS.runfile = runfile
 
 loadModules = function(path)
@@ -105,6 +118,11 @@ loadModules = function(path)
 		OS.modules[f] = retModule
 	end
 end
+
+print()
+filesystem.remove("/tmp")
+filesystem.makeDirectory("/tmp")
+print("Cleared /tmp")
 
 --load modules
 print()
@@ -146,6 +164,10 @@ OS.memoryMsgStr = function()
 	return "Memory: "..tostring(math.floor((computer.totalMemory() - OS.averageMem())/1024)).."KB used / "..tostring(math.floor(computer.totalMemory()/1024)).."KB total"
 end
 
+OS.powerMsgStr = function()
+	return "Energy: "..tostring(math.floor(computer.energy())).."/"..tostring(math.floor(computer.maxEnergy()))
+end
+
 OS.cleanNils = function(t)
 	local ans = {}
 	for _,v in pairs(t) do
@@ -154,9 +176,12 @@ OS.cleanNils = function(t)
 	return ans
 end
 
---network.sendPacket(1, {"stuff"}, false)
+--[[local lf = function(_, localNetworkCard, remoteAddress, port, distance, payload)
+	print("Received data '" .. tostring(payload) .. "' from address " .. remoteAddress .." on network card " .. localNetworkCard .. " on port " .. port .. ".")
+end
 
---network.registerNetworkListener(function(_, localNetworkCard, remoteAddress, port, distance, payload) print("Received data '" .. tostring(payload) .. "' from address " .. remoteAddress .." on network card " .. localNetworkCard .. " on port " .. port .. ".") end, 0.05)
+network.registerNetworkListener(lf)
+--]]
 
 term.setCursorBlink(false)
 
@@ -170,6 +195,8 @@ OS.averageMem = function()
 	t = t/#OS.memAverages
 	return t
 end
+
+
 
 local sec = 0
 while true do

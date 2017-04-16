@@ -4,6 +4,11 @@ Device.driverList = {
 	Server = {Name = "Server", desc = "Central control server for networked devices", file = "Server"};
 	Redstone = {Name = "Redstone", desc = "Hub for controlling redstone signals", file = "Redstone"};
 	Tablet = {Name = "Tablet", desc = "Remote control terminal", file = "Tablet"};
+	Terminal = {Name = "Terminal", desc = "Wired terminal", file = "Terminal"};
+}
+
+Device.miniAppList = {
+	LinkedRelay = {Name = "LinkedRelay", desc = "Relay program for linked cards", file = "LinkedRelay"};
 }
 
 Device.currentConfig = {
@@ -12,6 +17,13 @@ Device.currentConfig = {
 }
 
 Device.Driver = nil
+Device.updateReceived = false
+Device.updateFiles = {}
+Device.updateDirectories = {}
+Device.okToUpdate = false
+Device.updating = false
+
+Device.updatePackage = nil
 
 Device.loadConfig = function()
 	local str = Packager.getFileString("/config")
@@ -33,6 +45,8 @@ Device.saveConfig = function()
 end
 
 Device.commandListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not port) then return end
+	if (port ~= 0) and (port ~= network.Ports.Command) and (port ~= network.Ports.General) then return end
 	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
@@ -65,14 +79,23 @@ Device.commandListener = function(_, localNetworkCard, remoteAddress, port, dist
 	end
 end
 
+
+
 Device.commandResponse = function(deviceName, resTbl)
 	local response
 	if (not resTbl) then response = {{Type = "print", text = "Command executed"}} else response = resTbl.getResponse() end
-	network.sendPacket(network.receivePort, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = response}, false)
+	network.sendPacket(network.Ports.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = response}, false)
 end
 
 Device.commandFailResponse = function(deviceName)
-	network.sendPacket(network.receivePort, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = {{Type = "print", text = "Internal Error"}}}, false)
+	network.sendPacket(network.Ports.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = {{Type = "print", text = "Internal Error"}}}, false)
+end
+
+Device.updateListener = function(_, FileName, FilePath) --FTP Listener
+	if (FileName == "UpdatePackage") then
+		Shell.print("Received update package, run 'reboot' to install update and reboot")
+		Device.updatePackage = FilePath
+	end
 end
 
 Device.init = function()
@@ -88,6 +111,7 @@ Device.init = function()
 	Device.Driver.registerCommands()
 	Device.saveConfig()
 	network.registerNetworkListener(Device.commandListener)
+	network.ftp.registerFtpListener(Device.updateListener)
 	--set label
 	local dProxy = fs.drive.letterToProxy(initDrive)
 	dProxy.setLabel(Device.currentConfig.Name)

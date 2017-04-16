@@ -18,6 +18,7 @@ function serialization.serialize(value, pretty)
   local id = "^[%a_][%w_]*$"
   local ts = {}
   local function s(v, l)
+  OS.sleep(0.01)
     local t = type(v)
     if t == "nil" then
       return "nil"
@@ -136,5 +137,14 @@ function serialization.unserialize(data)
   end
   return output
 end
+
+
+
+
+
+
+
+
+
 
 return serialization

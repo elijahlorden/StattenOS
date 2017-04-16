@@ -15,8 +15,10 @@ Commands.executeCommand = function(name, isNetwork, ...)
 	if (Commands.commandList[name] ~= nil) then
 		local success, response = Commands.commandList[name].Function(...)
 		if (not success) then
+			local res = newResponse()
+			print("[ ] = optional parameter;")
+			res.print("[ ] = optional parameter;")
 			print("Command usage: "..name.." "..Commands.commandList[name].ArgumentMessage)
-			local res = responseTbl()
 			res.print("Command usage: "..name.." "..Commands.commandList[name].ArgumentMessage)
 			return res
 		else
@@ -24,7 +26,7 @@ Commands.executeCommand = function(name, isNetwork, ...)
 		end
 	else
 		print("'"..tostring(name).."' is not a valid Command.  For a list of Commands, run 'help'")
-		local res = responseTbl()
+		local res = newResponse()
 		res.print("'"..tostring(name).."' is not a valid Command.  For a list of Commands, run 'help'")
 		return res
 	end
@@ -37,22 +39,11 @@ end
 
 
 
-function responseTbl()
-	local tbl = {}
-	tbl.contents = {}
-	tbl.print = function(text)
-		table.insert(tbl.contents, {Type = "print", text = text})
-	end
-	tbl.printPaged = function(text)
-		table.insert(tbl.contents, {Type = "printPaged", text = text})
-	end
-	tbl.getResponse = function() return tbl.contents end
-	return tbl
-end
+
 
 ----------------------------------------------------------------- Internal Commands
 local helpFunc = function(cmdName) -- HELP
-	local response = responseTbl()
+	local response = newResponse()
 	if (cmdName == nil) then
 		local str = ""
 		for i,p in pairs(Commands.commandList) do
@@ -62,6 +53,8 @@ local helpFunc = function(cmdName) -- HELP
 		response.printPaged(str)
 	else
 		if (Commands.commandList[cmdName] ~= nil) then
+			print("[ ] = optional parameter;")
+			response.print("[ ] = optional parameter;")
 			print("Usage: "..Commands.commandList[cmdName].Name.." "..Commands.commandList[cmdName].ArgumentMessage)
 			response.print("Usage: "..Commands.commandList[cmdName].Name.." "..Commands.commandList[cmdName].ArgumentMessage)
 		else
@@ -75,10 +68,10 @@ end
 Commands.registerCommand("help", helpFunc, "Displays command list", "[command]")
 
 local deviceNameFunc = function(newName) -- SET DEVICE NAME
-	local response = responseTbl()
+	local response = newResponse()
 	local newName = tostring(newName)
 	if (newName == nil) or (newName == "") or (newName == " ") then return false end
-	if (newName:len() > 25) or (newName:len() < 5) then print("Name must 5 to 25 characters long") response.print("Name must 5 to 25 characters long") return true end
+	if (newName:len() > 25) or (newName:len() < 5) then print("Name must 5 to 25 characters long") response.print("Name must 5 to 25 characters long") return true, response end
 	Device.currentConfig.Name = newName
 	print("Device name changed to '"..Device.currentConfig.Name.."'")
 	response.print("Device name changed to '"..Device.currentConfig.Name.."'")
@@ -104,36 +97,65 @@ end
 
 Commands.registerCommand("setDeviceDriver", deviceNameFunc, "Sets driver of local device", "driverName")
 
-Commands.registerCommand("listDeviceDrivers", function() local res = responseTbl() for i,p in pairs(Device.driverList) do print(i.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
+Commands.registerCommand("listDeviceDrivers", function() local res = newResponse() for i,p in pairs(Device.driverList) do print(i.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
 
-Commands.registerCommand("memory", function() local res = responseTbl() print(OS.memoryMsgStr()) res.print(OS.memoryMsgStr()) return true, res end, "Displays memory status", "")
+Commands.registerCommand("memory", function() local res = newResponse() print(OS.memoryMsgStr()) res.print(OS.memoryMsgStr()) return true, res end, "Displays memory status", "")
 
-Commands.registerCommand("shutdown", function() network.sendShutdownPacket() Device.saveConfig() Device.Driver.powerOff() computer.shutdown() return true end, "Soft poweroff", "")
+Commands.registerCommand("energy", function() local res = newResponse() print(OS.powerMsgStr()) res.print(OS.powerMsgStr()) return true, res end, "Displays energy status", "")
 
-Commands.registerCommand("restart", function() network.sendShutdownPacket() Device.saveConfig() Device.Driver.powerOff() computer.shutdown(true) return true end, "Soft reboot", "")
+Commands.registerCommand("shutdown", function() print("Shutting Downn") OS.sleep(1) network.sendShutdownPacket() Device.saveConfig() Device.Driver.powerOff() computer.shutdown() return true end, "Soft poweroff", "")
+
+local rebootCommand = function()
+	if (Device.updatePackage ~= nil) then
+		print("Update package present, installation process beginning")
+		print("Do NOT power off the machine during the update process.")
+		print("If the device is powered off during the update process, it will no longer function correctly.")
+		print("Commencing update...")
+		OS.sleep(1)
+		Packager.installUpdatePackage(Device.updatePackage)
+		print("Rebooting")
+		OS.sleep(3)
+		network.sendShutdownPacket()
+		Device.saveConfig()
+		Device.Driver.powerOff()
+		computer.shutdown(true)
+	else
+		print("Rebooting")
+		OS.sleep(1)
+		network.sendShutdownPacket()
+		Device.saveConfig()
+		Device.Driver.powerOff()
+		computer.shutdown(true)
+	end
+end
+
+Commands.registerCommand("reboot", rebootCommand, "Soft reboot, will install update package if available", "")
 
 Commands.registerCommand("cls", function() term.clear() return true end, "Clears the screen", "")
 
 local listDrives = function() -- LIST DRIVES
-	local response = responseTbl()
+	local response = newResponse()
 	local driveIter = fs.drive.list()
+	local num = 0
 	for d in driveIter do
-		pcall(function()
-			local proxy = fs.drive.letterToProxy(d)
-			if (proxy) then
-				print(d.." "..("["..proxy.getLabel().."]" or "[No Label]").." ("..fs.drive.toAddress(d)..")")
-				response.print(d.." "..("["..proxy.getLabel().."]" or "[No Label]").." ("..fs.drive.toAddress(d)..")")
-			end
-		end)
+		num = num + 1
+		local address = fs.drive.toAddress(d)
+		--print(address)
+		local proxy = fs.drive.letterToProxy(d)
+		if (proxy) then
+			print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..address or "Address_Error"..")")
+			response.print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..address or "Address_Error"..")")
+		end
 	end
+	print(num.." Drives")
 	return true, response
 end
 
 Commands.registerCommand("listDrives", listDrives, "List currently attached drives", "")
 
 local installFunc = function(driveLetter) -- INSTALL TO DRIVE
-	local response = responseTbl()
-	driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
+	local response = newResponse()
+	local driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
 	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
 	print("Attempting to install OS on drive "..driveLetter)
 	response.print("Attempting to install OS on drive "..driveLetter)
@@ -142,11 +164,26 @@ local installFunc = function(driveLetter) -- INSTALL TO DRIVE
 	return true, response
 end
 
-Commands.registerCommand("install", installFunc, "Install OS to attached drive", "driveLetter")
+Commands.registerCommand("install", installFunc, "Install OS to the specified drive", "driveLetter")
 
+local installMiniappFunc = function(driveLetter, appName)
+	if (not appName) or (appName == "") or (appName == " ") then return false end
+	local response = newResponse()
+	local driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
+	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
+	if (Device.miniAppList[appName] ~= nil) then
+		local file = "/miniapps/"..Device.miniAppList[appName].file
+		if (not filesystem.exists(file)) then print("App file not found") response.print("App file not found") return true, response end
+		if (not Packager.installMiniAppToDrive(driveLetter, file)) then print("Installation Failed") response.print("Installation Failed") return true, response end
+		print("Installed "..appName.." on drive "..driveLetter)
+		response.print("Installed "..appName.." on drive "..driveLetter)
+		local proxy = fs.drive.letterToProxy(driveLetter)
+		if (proxy) then proxy.setLabel(appName) end
+	end
+	return true, response
+end
 
-
-
+Commands.registerCommand("installMiniApp", installMiniappFunc, "Install a MiniApplication to the specified drive", "driveLetter, appName")
 
 
 

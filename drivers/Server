@@ -1,6 +1,6 @@
 local Server = {}
 
-Server.deviceList = {[network.acceptedServerName] = {Name = network.acceptedServerName, Type = "Server", ConnectionTime = 0, Address = "local"}} -- Name = {Name = name, Type = driverName, ConnectionTime = 0, Address = address}
+Server.deviceList = {[network.acceptedServerName] = {Name = network.acceptedServerName, Type = "Server", ConnectionTime = 0, Address = component.modem.address}} -- Name = {Name = name, Type = driverName, ConnectionTime = 0, Address = address}
 
 
 Server.tickInterval = 0.1
@@ -28,18 +28,55 @@ Server.powerOff = function()
 end
 
 Server.registerCommands = function()
-	
+	Commands.registerCommand("listDevices", Server.listDeviceCmd , "Lists currently connected devices, add TypeFilter to filter devices by type", "[TypeFilter]")
+	Commands.registerCommand("sendUpdate", Server.updateCmd , "Package OS currently installed on Server and send it to networked devices.", "[DeviceName]")
 end
 
-Server.listDeviceCmd = function()
+Server.updateCmd = function(deviceName)
+	local response = newResponse()
+	local cmdReceiver = deviceName or "All"
+	print("Sending update packages to "..cmdReceiver)
+	response.print("Sending update packages to "..cmdReceiver)
+	local packagedOS = Packager.packageIntoTable()
+	print("Serializing packaged OS")
+	response.print("Serializing packaged OS")
+	OS.sleep(0.1)
+	local serializedOS = JSON.encode(packagedOS)
+	print("Writing packaged OS to temporary file")
+	response.print("Writing packaged OS to temporary file")
+	local tmpProxy = component.proxy(computer.getBootAddress())
+	if (tmpProxy.exists("/tmp/out_UpdatePackage")) then tmpProxy.remove("/tmp/out_UpdatePackage") end
+	local handle, reason = tmpProxy.open("/tmp/out_UpdatePackage", "w")
+	if (not handle) then print("Error opening file ("..reason..")") return end
+	print(serializedOS:len().." Characters")
+	tmpProxy.write(handle, serializedOS)
+	tmpProxy.close(handle)
+	print("Sending file via FTP")
+	print(tmpProxy.size("/tmp/out_UpdatePackage").."b")
+	response.print("Sending file via FTP")
+	network.ftp.sendFile(tmpProxy, "/tmp/out_UpdatePackage", "UpdatePackage", cmdReceiver)
+	print("Update distributed")
+	response.print("Update distributed")
+	return true, response
+end
+
+Server.listDeviceCmd = function(typeFilter)
+	local filter = typeFilter or ""
+	local response = newResponse()
 	local str = ""
 	for i,p in pairs(Server.deviceList) do
-		
+		if (string.find(p.Type, filter)) then
+			str = str..p.Name.." "..p.Type.." "..p.Address.."\n"
+		end
 	end
-	
+	printPaged(str)
+	response.printPaged(str)
+	return true, response
 end
 
 Server.networkListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not port) then return end
+	if (port ~= 0) and (port ~= network.Ports.Keepalive) and (port ~= network.Ports.General) then return end
 	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
@@ -47,6 +84,7 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 	if (packet.Header ~= "Shutdown") then
 		if (Server.deviceList[packet.Sender] ~= nil) then
 			Server.deviceList[packet.Sender].ConnectionTime = 0
+			Server.deviceList[packet.Sender].Address = remoteAddress
 		else
 			Server.deviceList[packet.Sender] = {Name = packet.Sender, Type = packet.SenderType, ConnectionTime = 0, Address = remoteAddress}
 			Shell.print("Network Device "..packet.Sender.." ("..packet.SenderType..") Connected")

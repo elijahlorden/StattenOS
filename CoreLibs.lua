@@ -473,6 +473,7 @@ function fs_code()
   end
   function fs.drive.mapAddress(letter, address)
 	--print("mapAddress")
+	if (not address) then fs.drive._map[letter] = nil end
     fs.drive._map[letter] = fs.proxy(address)
   end
   function fs.drive.autoMap(address) --returns the letter if mapped OR already mapped, false if not.
@@ -613,7 +614,12 @@ function fs_code()
   local function driveInit()
     local boot = fs.proxy(computer.getBootAddress())
     local temp = fs.proxy(computer.tmpAddress())
-    fs.drive._map = { ["A"]=boot, ["X"]=temp } 
+    fs.drive._map = { ["A"]=boot, ["X"]=temp }
+	for address, componentType in (component.list("filesystem")) do
+		if (componentType == "filesystem") and (address ~= computer.getBootAddress()) and (address ~= computer.tmpAddress()) then
+			fs.drive.autoMap(address)
+		end
+	end
   end
   driveInit()
   --return the API

@@ -53,31 +53,30 @@ Shell.networkCommand = function(tArgs)
 	local devName = arg1[1]
 	local devCmd = arg1[2]
 	if (devName == "") or (devName == " ") or (devCmd == "") or (devCmd == " ") then return false end
-	print("("..devName..")")
 	local packet = {Header = "RunCommand", Receiver = devName, CommandStr = Shell.appendCmd(devCmd, tArgs)}
 	Shell.sendNetworkCommand(packet)
-	
-	
 	return true
 end
 
 Shell.sendNetworkCommand = function(outpkt)
-	network.sendPacket(network.receivePort, outpkt, false)
+	network.sendPacket(network.Ports.Command, outpkt, false)
 	-- Wait for response
 	for i=1,20 do
 		local event, localNetworkCard, remoteAddress, port, distance, inpkt = event.pull(0.5, "modem_message")
 		if (event) then
-			local packet = serialization.unserialize(inpkt)
-			local Receiver = tostring(packet.Receiver) or ""
-			local Header = tostring(packet.Header) or ""
-			local Sender = tostring(packet.Sender) or ""
-			if (packet) then
-				if (Receiver ~= "") and (Sender ~= "") then
-					if (Header == "CommandResponse") and (Sender:lower() == outpkt.Receiver:lower()) then
-						if (packet.Data ~= nil) then
-							if (type(packet.Data):lower() == "table") then
-								Shell.handleResponse(packet.Data)
-								return
+			if (port) and ((port == network.Ports.CommandResponse) or (port == 0) or (port == network.Ports.General)) then
+				local packet = serialization.unserialize(inpkt)
+				local Receiver = tostring(packet.Receiver) or ""
+				local Header = tostring(packet.Header) or ""
+				local Sender = tostring(packet.Sender) or ""
+				if (packet) then
+					if (Receiver ~= "") and (Sender ~= "") then
+						if (Header == "CommandResponse") and (Sender:lower() == outpkt.Receiver:lower()) then
+							if (packet.Data ~= nil) then
+								if (type(packet.Data):lower() == "table") then
+									Shell.handleResponse(packet.Data)
+									return
+								end
 							end
 						end
 					end

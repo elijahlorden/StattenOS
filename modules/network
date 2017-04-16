@@ -1,6 +1,12 @@
 local network = {}
 
-network.receivePort = 3209
+network.Ports = {}
+network.Ports.General = 6000
+network.Ports.Command = 5000
+network.Ports.CommandResponse = 50001
+network.Ports.FTP = 5002
+network.Ports.Keepalive = 5003
+
 
 network.acceptedServerName = "Server"
 
@@ -22,17 +28,29 @@ network.sendPacket = function(port, packet, wireless)
 	local modem = network.getModem()
 	if (not modem) then return false end
 	if (modem.isWireless()) then if (wireless) then modem.setStrength(100000) else modem.setStrength(0) end end
-	packet.SenderType = Device.currentConfig.Driver
-	packet.Sender = Device.currentConfig.Name
-	local packetStr = serialization.serialize(packet)
+	local packetStr = network.formatPacket(packet, port)
 	network.sendToLinkedCards(packetStr)
 	return modem.broadcast(port, packetStr)
+end
+
+network.getPortName = function(portNum)
+	for i,p in pairs(network.Ports) do
+		if (p == portNum) then return i end
+	end
+end
+
+network.formatPacket = function(inpkt, port)
+	inpkt.SenderType = Device.currentConfig.Driver
+	inpkt.Sender = Device.currentConfig.Name
+	inpkt.PortName = network.getPortName(port)
+	local packetStr = serialization.serialize(inpkt)
+	return packetStr
 end
 
 network.openPort = function(port)
 	local modem = network.getModem()
 	if (not modem) then return false end
-	print("Opening port "..port)
+	--print("Opening port "..port)
 	return modem.open(port)
 end
 
@@ -48,22 +66,148 @@ end
 
 network.sendKeepalivePacket = function()
 	local packet = {Header = "Keepalive"}
-	network.sendPacket(network.receivePort, packet, false)
+	network.sendPacket(network.Ports.Keepalive, packet, false)
 end
 
 network.sendShutdownPacket = function()
 	local packet = {Header = "Shutdown"}
-	network.sendPacket(network.receivePort, packet, false)
+	network.sendPacket(network.Ports.Keepalive, packet, false)
 end
+
+network.ftp = {}
+
+network.maxPacketSize = 7000
+
+network.ftp.sendPacket = function(fileName, receiver, chunk)
+	local packet = {Header = "FileTransferData", Receiver = receiver, FileName = fileName, Chunk = chunk}
+	return network.sendPacket(network.Ports.FTP, packet, false)
+end
+
+network.ftp.sendFinished = function(fileName, receiver, bytes)
+	local packet = {Header = "FileTransferComplete", Receiver = receiver, FileName = fileName, Bytes = bytes}
+	return network.sendPacket(network.Ports.FTP, packet, false)
+end
+
+network.ftp.readByesFromFile = function(driveProxy, handle, bytesToRead)
+	local buffer = ""
+	local cou = 0
+	local maxCou = math.floor(bytesToRead/1024)-1
+	repeat
+		cou = cou + 1
+		local data, reason = driveProxy.read(handle, 1024)--bytesToRead-(buffer:len()))
+		if (not data) and (reason) then
+			print("Unable to read file "..path.."("..reason..")")
+			return
+		end
+		if (data) then
+			buffer = buffer..data
+		end
+	until (not data) or (cou > maxCou)--(buffer:len() >= bytesToRead)
+	if (buffer == "") or (buffer == " ") then return nil end
+	return buffer
+end
+
+network.ftp.sendFile = function(driveProxy, path, sendName, receiverName)
+	if (not driveProxy.exists(path)) or (driveProxy.isDirectory(path)) then return false end
+	local ftpPktSize = network.maxPacketSize - 1000
+	local handle, reason = driveProxy.open(path, "r")
+	local fileSize = driveProxy.size(path)
+	print(ftpPktSize.."b max chunk length")
+	print(fileSize.."b File")
+	if (not handle) then
+		print("Unable to read file "..path.."("..reason..")")
+		return
+	end
+	repeat
+		local data = network.ftp.readByesFromFile(driveProxy, handle, ftpPktSize)
+		if (data) then
+			print("Sending "..data:len().."b Chunk")
+			network.ftp.sendPacket(sendName, receiverName, data)
+			OS.sleep(0.15)
+		end
+	until not data
+	network.ftp.sendFinished(sendName, receiverName, fileSize)
+	return true
+end
+
+network.ftp.listener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not port) then return end
+	if (port ~= 0) and (port ~= network.Ports.FTP) and (port ~= network.Ports.General) then return end
+	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	local packet = serialization.unserialize(inpkt)
+	if (not packet) then return end
+	if (not packet.Header) then return end
+	if (not packet.Receiver) or (not packet.Sender) then return end
+	packet.Receiver = tostring(packet.Receiver) or ""
+	packet.Sender = tostring(packet.Sender) or ""
+	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
+	if (packet.Header == "FileTransferData") then
+		if (not packet.FileName) or (not packet.Chunk) then return end
+		Shell.print("Received "..packet.Chunk:len().."b for file "..packet.FileName)
+		local tmpProxy = component.proxy(computer.getBootAddress())
+		local handle, reason
+		if (tmpProxy.exists("/tmp/"..packet.FileName.."_Partial")) then 
+			handle, reason = tmpProxy.open("/tmp/"..packet.FileName.."_Partial", "a")
+		else
+			handle, reason = tmpProxy.open("/tmp/"..packet.FileName.."_Partial", "w")
+		end
+		if (not handle) then Shell.print("Error opening file ("..reason..")") return end
+		tmpProxy.write(handle, packet.Chunk)
+		tmpProxy.close(file)
+		OS.sleep(0.1)
+	elseif (packet.Header == "FileTransferComplete") then
+		if (not packet.FileName) or (not packet.Bytes) then return end
+		local tmpProxy = component.proxy(computer.getBootAddress())
+		if (tmpProxy.exists("/tmp/"..packet.FileName.."_Partial")) then
+			Shell.print("Received EOF for file "..packet.FileName)
+			Shell.print("Checking ByteCount")
+			if (tmpProxy.size("/tmp/"..packet.FileName.."_Partial") == packet.Bytes) then
+				Shell.print("ByteCount matches, finalizing file transfer")
+				tmpProxy.rename("/tmp/"..packet.FileName.."_Partial", "/tmp/"..packet.FileName)
+				computer.pushSignal("ftp_file_received", packet.FileName, "/tmp/"..packet.FileName)
+			else
+				Shell.print("ByteCount mismath, aborting file transfer")
+				tmpProxy.remove("/tmp/"..packet.FileName.."_Partial")
+			end
+		end
+	end
+end
+
+network.ftp.registerFtpListener = function(func)
+	event.listen("ftp_file_received", func)
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 
 network.init = function()
-	network.openPort(network.receivePort)
+	network.registerNetworkListener(network.ftp.listener)
+	network.portInit()
 end
 
-
+network.portInit = function()
+	for i,p in pairs(network.Ports) do
+		local success = network.openPort(p)
+		if (success) then
+			print("Opened "..i.." Port ("..p..")")
+		else
+			print("Unable to open "..i.." Port ("..p..")")
+		end
+	end
+end
 
 
 
