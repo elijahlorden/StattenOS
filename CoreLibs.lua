@@ -284,6 +284,13 @@ function event_code()
         for index, listener in ipairs(listeners[signal]) do
           list[index] = listener
         end
+		--[[for signalName, listenerList in pairs(listeners) do
+			if (signalName == signal) or (string.find(signal, signalName)) then
+				for index, listener in pairs(listenerList) do
+					list[index] = listener
+				end
+			end
+		end--]]
         return list
       end
       for _, callback in ipairs(callbacks()) do

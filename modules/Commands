@@ -69,6 +69,7 @@ Commands.registerCommand("help", helpFunc, "Displays command list", "[command]")
 
 local deviceNameFunc = function(newName) -- SET DEVICE NAME
 	local response = newResponse()
+	if (Device.currentConfig.Driver == "Server") then print("Unable to rename Central Server") response.print("Unable to rename Central Server") return true, response end
 	local newName = tostring(newName)
 	if (newName == nil) or (newName == "") or (newName == " ") then return false end
 	if (newName:len() > 25) or (newName:len() < 5) then print("Name must 5 to 25 characters long") response.print("Name must 5 to 25 characters long") return true, response end
@@ -81,7 +82,7 @@ end
 
 Commands.registerCommand("setDeviceName", deviceNameFunc, "Sets name of local device", "name")
 
-local deviceNameFunc = function(newDriver) -- SET DEVICE DRIVER
+local deviceDriverFunc = function(newDriver) -- SET DEVICE DRIVER
 	local response = {}
 	local newDriver = tostring(newDriver)
 	if (newDriver == nil) or (newDriver == "") or (newDriver == " ") then return false end
@@ -95,7 +96,7 @@ local deviceNameFunc = function(newDriver) -- SET DEVICE DRIVER
 	return true, response
 end
 
-Commands.registerCommand("setDeviceDriver", deviceNameFunc, "Sets driver of local device", "driverName")
+Commands.registerCommand("setDeviceDriver", deviceDriverFunc, "Sets driver of local device", "driverName")
 
 Commands.registerCommand("listDeviceDrivers", function() local res = newResponse() for i,p in pairs(Device.driverList) do print(i.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
 

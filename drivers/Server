@@ -14,8 +14,9 @@ Server.init = function()
 	network.registerNetworkListener(Server.networkListener)
 end
 
-Server.load = function()
-	
+Server.load = function(config)
+	if (not config.GateRegistry) then config.GateRegistry = {} end
+	config.Name = network.acceptedServerName
 end
 
 Server.setup = function()
@@ -76,7 +77,7 @@ end
 
 Server.networkListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
 	if (not port) then return end
-	if (port ~= 0) and (port ~= network.Ports.Keepalive) and (port ~= network.Ports.General) then return end
+	if (port ~= 0) and (port ~= network.Ports.Keepalive) and (port ~= network.Ports.Stargate) and (port ~= network.Ports.General) then return end
 	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
@@ -96,6 +97,12 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 			Shell.print(packet.Sender.." Disconnected")
 			computer.beep(Server.disconnectBeep)
 		end
+	elseif (packet.Header == "FetchGateRegistry") then
+		
+	elseif (packet.Header == "RegisterGate") then
+		
+	elseif (packet.Header == "UnregisterGate") then
+		
 	end
 end
 

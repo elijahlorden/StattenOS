@@ -6,6 +6,8 @@ network.Ports.Command = 5000
 network.Ports.CommandResponse = 50001
 network.Ports.FTP = 5002
 network.Ports.Keepalive = 5003
+network.Ports.Stargate = 5006
+network.Ports.StargateResponse = 5007
 
 
 network.acceptedServerName = "Server"
@@ -33,6 +35,14 @@ network.sendPacket = function(port, packet, wireless)
 	return modem.broadcast(port, packetStr)
 end
 
+network.sendPacketWithoutLink = function(port, packet, wireless)
+	local modem = network.getModem()
+	if (not modem) then return false end
+	if (modem.isWireless()) then if (wireless) then modem.setStrength(100000) else modem.setStrength(0) end end
+	local packetStr = network.formatPacket(packet, port)
+	return modem.broadcast(port, packetStr)
+end
+
 network.getPortName = function(portNum)
 	for i,p in pairs(network.Ports) do
 		if (p == portNum) then return i end
@@ -40,8 +50,10 @@ network.getPortName = function(portNum)
 end
 
 network.formatPacket = function(inpkt, port)
-	inpkt.SenderType = Device.currentConfig.Driver
-	inpkt.Sender = Device.currentConfig.Name
+	if (Device) then
+		inpkt.SenderType = Device.currentConfig.Driver
+		inpkt.Sender = Device.currentConfig.Name
+	end
 	inpkt.PortName = network.getPortName(port)
 	local packetStr = serialization.serialize(inpkt)
 	return packetStr

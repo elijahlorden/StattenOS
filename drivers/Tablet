@@ -2,14 +2,61 @@ local Tablet = {}
 
 Tablet.init = function()
 	event.timer(10, Tablet.sendKeepalive, math.huge)
+	network.registerNetworkListener(Tablet.gateNetworkListener)
 end
 
-Tablet.load = function()
-	
+Tablet.load = function(config)
+	if (not config.GateRegistry) then config.GateRegistry = {} end
 end
 
 Tablet.registerCommands = function()
-	
+	Commands.registerCommand("dialGate", Tablet.dialGateCommand, "Broadcast DialOut packet for un-networked gates", "<dialAddress/savedAddressName>")
+	Commands.registerCommand("closeGate", Tablet.closeGateCommand, "Broadcast Terminate packet for un-networked gates", "")
+end
+
+Tablet.dialGateCommand = function(dialAddress)
+	dialAddress = tostring(dialAddress)
+	if (not dialAddress) or (dialAddress == "") or (dialAddress == " ") then return false end
+	print("Sending DialOut packet...")
+	local packet = {Header = "dialGate", DialAddress = dialAddress}
+	network.sendPacketWithoutLink(network.Ports.Stargate, packet, true)
+	return true
+end
+
+Tablet.closeGateCommand = function()
+	local packet = {Header = "closeGate"}
+	network.sendPacketWithoutLink(network.Ports.Stargate, packet, true)
+	print("Sending Termination packet...")
+	return true
+end
+
+local prevGatePacket = {Header = "", GateAddress = ""}
+
+Tablet.gateNetworkListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not port) then return end
+	if (port ~= network.Ports.StargateResponse) then return end
+	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	local packet = serialization.unserialize(inpkt)
+	if (not packet) then return end
+	if (not packet.Header) then return end
+	if (not packet.GateAddress) then return end
+	if (packet.Header == "GateDiallingOut") then
+		Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").." initiated outgoing dialling sequence to "..(packet.RemoteAddress or "REMOTE_ADDRESS_ERROR"))
+	elseif (packet.Header == "GateDiallingIn") then
+		Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").." has received incoming dialling sequence from "..(packet.RemoteAddress or "REMOTE_ADDRESS_ERROR"))
+	elseif (packet.Header == "GateClosing") then
+		Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").."'s connection has terminated")
+	elseif (packet.Header == "GateClosing") then
+		Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").."'s connection has terminated")
+	elseif (packet.Header == "GateConnected") then
+		if (prevGatePacket.Header == "GateConnected") and (prevGatePacket.GateAddress == packet.GateAddress) then return end
+		if (packet.Direction == "Outgoing") then
+			Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").." has established a stable connection to "..(packet.RemoteAddress or "REMOTE_ADDRESS_ERROR"))
+		else
+			Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").." has established a stable connection from "..(packet.RemoteAddress or "REMOTE_ADDRESS_ERROR"))
+		end
+	end
+	prevGatePacket = packet
 end
 
 Tablet.setup = function()

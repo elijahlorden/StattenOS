@@ -9,6 +9,7 @@ Device.driverList = {
 
 Device.miniAppList = {
 	LinkedRelay = {Name = "LinkedRelay", desc = "Relay program for linked cards", file = "LinkedRelay"};
+	GateController = {Name = "GateController", desc = "Used to control Stargates which are not connected to a full StattenOS network", file = "GateController"};
 }
 
 Device.currentConfig = {
@@ -101,15 +102,15 @@ end
 Device.init = function()
 	Device.loadConfig()
 	print("Loading Device Driver '"..Device.currentConfig.Driver.."'")
-	print("Device Name: "..Device.currentConfig.Name)
 	local driverPath = "/drivers/"..Device.currentConfig.Driver
 	if (not filesystem.exists(driverPath)) then print("Unable to load driver, defaulting to generic device") return end
 	Device.Driver = dofile(driverPath)
 	if (not Device.Driver) then print("Unable to load driver, defaulting to generic device") return end
-	Device.Driver.load()
+	Device.Driver.load(Device.currentConfig)
 	Device.Driver.init()
 	Device.Driver.registerCommands()
 	Device.saveConfig()
+	print("Device Name: "..Device.currentConfig.Name)
 	network.registerNetworkListener(Device.commandListener)
 	network.ftp.registerFtpListener(Device.updateListener)
 	--set label
