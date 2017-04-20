@@ -100,6 +100,15 @@ Packager.wipeDriveForOSInstall = function(proxy, path)
 	end
 end
 
+Packager.wipeDriveForOSInstall2 = function(proxy, path)
+	for _,f in pairs(proxy.list(path)) do
+		if (f ~= "config") then
+			proxy.remove(path..f)
+			Shell.print("Deleting "..f)
+		end
+	end
+end
+
 Packager.installToDrive = function(driveLetter)
 	local proxy = fs.drive.letterToProxy(driveLetter)
 	if (not proxy) then print("Drive does not exist") return false end
@@ -131,6 +140,13 @@ Packager.copyOSFileToDrive = function(driveProxy, filePath, newName)
 	print("copied "..filePath.." to "..newName)
 end
 
+Packager.copyOSFileToDrive2 = function(driveProxy, filePath, newName)
+	local inStr = Packager.getFileString(filePath)
+	local handle = driveProxy.open("/"..newName, "w")
+	driveProxy.write(handle, inStr)
+	Shell.print("copied "..filePath.." to "..newName)
+end
+
 Packager.installMiniAppToDrive = function(drive, appFile)
 	local proxy = fs.drive.letterToProxy(drive)
 	if (not proxy) then print("Drive does not exist") return false end
@@ -143,6 +159,21 @@ Packager.installMiniAppToDrive = function(drive, appFile)
 	Packager.copyOSFileToDrive(proxy, appFile, "/OS.lua")
 	for f in filesystem.list("/Modules/") do
 		Packager.copyOSFileToDrive(proxy, "/Modules/"..f, "/"..f)
+	end
+	return true
+end
+
+Packager.installMiniAppToDriveProxy = function(proxy, appFile)
+	if (not proxy) then Shell.print("Drive does not exist") return false end
+	Shell.print("Wiping drive")
+	Packager.wipeDriveForOSInstall2(proxy, "/")
+	Shell.print("Wiped")
+	Packager.copyOSFileToDrive(proxy, "/init.lua", "/init.lua")
+	Packager.copyOSFileToDrive(proxy, "/CoreLibs.lua", "/CoreLibs.lua")
+	Packager.copyOSFileToDrive(proxy, "/Keyboard.lua", "/Keyboard.lua")
+	Packager.copyOSFileToDrive(proxy, appFile, "/OS.lua")
+	for f in filesystem.list("/Modules/") do
+		Packager.copyOSFileToDrive2(proxy, "/Modules/"..f, "/"..f)
 	end
 	return true
 end
@@ -187,9 +218,26 @@ end
 
 
 
+Packager.componentAdded = function(_, address, componentType)
+	if (componentType == "filesystem") then
+		local proxy = component.proxy(address)
+		if (not proxy) then return end
+		local label = proxy.getLabel()
+		local splitLabel = text.split(label, ":")
+		if (#splitLabel < 2) then return end
+		if (splitLabel[1] == "ma") then
+			local appName = splitLabel[2]
+			if (Device.miniAppList[appName] ~= nil) then
+				Shell.print("Auto-updating miniApp")
+				Packager.installMiniAppToDriveProxy(proxy, "/miniapps/"..Device.miniAppList[appName].file)
+			end
+		end
+	end
+end
 
-
-
+Packager.init = function()
+	event.listen("component_added", Packager.componentAdded)
+end
 
 
 

@@ -608,12 +608,27 @@ function fs_code()
   --handle inserted and removed filesystems
   local function onComponentAdded(_, address, componentType)
     if componentType == "filesystem" then
-        fs.drive.autoMap(address)
+        local letter = fs.drive.autoMap(address)
+		if (letter) then
+			if (Shell) then
+				Shell.print("New drive detected, assigned to "..letter)
+			else
+				print("New drive detected, assigned to "..letter)
+			end
+		end
     end
   end
   local function onComponentRemoved(_, address, componentType)
     if componentType == "filesystem" then
-      fs.drive.mapAddress(fs.drive.toLetter(address), nil)
+	  local letter = fs.drive.toLetter(address)
+	  if (letter) then
+		if (Shell) then
+			Shell.print("Drive "..letter.." removed")
+		else
+			print("Drive "..letter.." removed")
+		end
+	  end
+      fs.drive.mapAddress(letter, nil)
     end
   end
   event.listen("component_added", onComponentAdded)

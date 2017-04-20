@@ -91,19 +91,38 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 			Shell.print("Network Device "..packet.Sender.." ("..packet.SenderType..") Connected")
 			computer.beep(Server.connectBeep)
 		end
-	elseif (packet.Header == "Shutdown") then
+	end
+	
+	if (packet.Header == "Shutdown") then
 		if (Server.deviceList[packet.Sender] ~= nil) then
 			Server.deviceList[packet.Sender] = nil
 			Shell.print(packet.Sender.." Disconnected")
 			computer.beep(Server.disconnectBeep)
 		end
 	elseif (packet.Header == "FetchGateRegistry") then
-		
+		if (not packet.Sender) then return end
+		Shell.print("GateRegistry Fetch Request")
+		local outPkt = {Header = "GateRegistryFetched", Registry = Device.currentConfig.GateRegistry, Receiver = packet.Sender}
+		network.sendPacket(network.Ports.StargateResponse, outPkt, false)
 	elseif (packet.Header == "RegisterGate") then
-		
+		if (not packet.GateName) or (not packet.GateAddress) then return end
+		Device.currentConfig.GateRegistry[packet.GateName] = packet.GateAddress
+		Shell.print("Gate "..packet.GateName.." Registered to address "..packet.GateAddress)
+		Server.sendGateRegistryBroadcast()
+		Device.saveConfig()
 	elseif (packet.Header == "UnregisterGate") then
-		
+		if (not packet.GateName) then return end
+		Device.currentConfig.GateRegistry[packet.GateName] = nil
+		Shell.print("Gate "..packet.GateName.." Unregistered")
+		Server.sendGateRegistryBroadcast()
+		Device.saveConfig()
 	end
+end
+
+Server.sendGateRegistryBroadcast = function()
+	local outPkt = {Header = "GateRegistryBroadcast", Registry = Device.currentConfig.GateRegistry}
+	network.sendPacket(network.Ports.StargateResponse, outPkt, false)
+	Shell.print("Broadcasted GateRegistry update")
 end
 
 Server.tickConnections = function()

@@ -179,7 +179,7 @@ local installMiniappFunc = function(driveLetter, appName)
 		print("Installed "..appName.." on drive "..driveLetter)
 		response.print("Installed "..appName.." on drive "..driveLetter)
 		local proxy = fs.drive.letterToProxy(driveLetter)
-		if (proxy) then proxy.setLabel(appName) end
+		if (proxy) then proxy.setLabel("ma:"..appName) end
 	end
 	return true, response
 end

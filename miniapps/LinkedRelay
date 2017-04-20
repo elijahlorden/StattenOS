@@ -78,7 +78,7 @@ while true do
 		print("Received Linked Message, forwarding to network (Port "..sendPort..")")
 	else
 		sendToLinkedCards(inpkt)
-		print("Received network message on Port"..port..", forwarding to linked card")
+		print("Received network message on Port "..port..", forwarding to linked card")
 	end
 end
 

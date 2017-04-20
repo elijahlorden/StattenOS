@@ -9,7 +9,6 @@ network.Ports.Keepalive = 5003
 network.Ports.Stargate = 5006
 network.Ports.StargateResponse = 5007
 
-
 network.acceptedServerName = "Server"
 
 network.getModem = function()
