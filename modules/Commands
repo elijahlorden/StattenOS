@@ -141,11 +141,10 @@ local listDrives = function() -- LIST DRIVES
 	for d in driveIter do
 		num = num + 1
 		local address = fs.drive.toAddress(d)
-		--print(address)
 		local proxy = fs.drive.letterToProxy(d)
 		if (proxy) then
-			print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..address or "Address_Error"..")")
-			response.print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..address or "Address_Error"..")")
+			print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..(address or "Address_Error")..")")
+			response.print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..(address or "Address_Error")..")")
 		end
 	end
 	print(num.." Drives")

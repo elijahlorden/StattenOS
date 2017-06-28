@@ -62,8 +62,13 @@ end
 Tablet.dialGateCommand = function(dialAddress)
 	dialAddress = tostring(dialAddress)
 	if (not dialAddress) or (dialAddress == "") or (dialAddress == " ") then return false end
+	local sendAddress = dialAddress
+	if (Device.currentConfig.GateRegistry[dialAddress] ~= nil) then
+		print("Found GateRegistry entry for "..dialAddress.." {"..Device.currentConfig.GateRegistry[dialAddress].."}")
+		sendAddress = Device.currentConfig.GateRegistry[dialAddress]
+	end
 	print("Sending DialOut packet...")
-	local packet = {Header = "dialGate", DialAddress = dialAddress}
+	local packet = {Header = "dialGate", DialAddress = sendAddress}
 	network.sendPacketWithoutLink(network.Ports.Stargate, packet, true)
 	return true
 end

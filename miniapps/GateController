@@ -104,16 +104,18 @@ end
 function networkListener(_, localNetworkCard, remoteAddress, port, distance, inpkt)
 	if (not inpkt) then return end
 	if (port ~= network.Ports.Stargate) and (port ~= network.Ports.General) then return end
-	print("Gate-related packet received "..port)
+	--print("Gate-related packet received "..port)
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
 	if (not packet.Header) then return end
 	if (packet.Header == "dialGate") then
 		if (not packet.DialAddress) then return end
+		print("Dial packet received {"..packet.DialAddress.."}")
 		Gate.dial(packet.DialAddress)
 	elseif (packet.Header == "closeGate") then
 		local state, engaged, direction = Gate.stargateState()
 		if (state == "Dialling") or (state == "Connected") or (state == "Opening") then
+			print("Terminate packet received")
 			Gate.disconnect()
 		end
 	elseif (packet.Header == "sendGDO") then
