@@ -8,6 +8,7 @@ network.Ports.FTP = 5002
 network.Ports.Keepalive = 5003
 network.Ports.Stargate = 5006
 network.Ports.StargateResponse = 5007
+network.Ports.Notifications = 5008
 
 network.acceptedServerName = "Server"
 
@@ -86,6 +87,7 @@ network.sendShutdownPacket = function()
 end
 
 network.ftp = {}
+network.notifications = {}
 
 network.maxPacketSize = 7000
 
@@ -188,9 +190,24 @@ network.ftp.registerFtpListener = function(func)
 	event.listen("ftp_file_received", func)
 end
 
+network.notifications.broadcast = function(message)
+	local packet = {Header = "Notification", Message = message}
+	network.sendPacket(network.Ports.Notifications, packet, false)
+end
 
-
-
+network.notifications.listener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not port) then return end
+	if (port ~= 0) and (port ~= network.Ports.Notifications) and (port ~= network.Ports.General) then return end
+	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	local packet = serialization.unserialize(inpkt)
+	if (not packet) then return end
+	if (not packet.Header) or (not packet.Sender)  then return end
+	if (packet.Header ~= "Notification") then return end
+	if (not packet.Message) then return end
+	computer.beep(2000)
+	Shell.print(packet.Message)
+	computer.beep(2000)
+end
 
 
 
@@ -206,6 +223,7 @@ end
 
 network.init = function()
 	network.registerNetworkListener(network.ftp.listener)
+	network.registerNetworkListener(network.notifications.listener)
 	network.portInit()
 end
 

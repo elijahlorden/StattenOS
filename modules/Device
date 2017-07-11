@@ -5,6 +5,7 @@ Device.driverList = {
 	Redstone = {Name = "Redstone", desc = "Hub for controlling redstone signals", file = "Redstone"};
 	Tablet = {Name = "Tablet", desc = "Remote control terminal", file = "Tablet"};
 	Terminal = {Name = "Terminal", desc = "Wired terminal", file = "Terminal"};
+	Fusion_Reactor = {Name = "Fusion_Reactor", desc = "Used to control the Mekanism Fusion Reactor", file = "Fusion_Reactor"};
 }
 
 Device.miniAppList = {

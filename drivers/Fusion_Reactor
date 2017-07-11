@@ -1,0 +1,271 @@
+local FusionReactor = {}
+
+FusionReactor.init = function()
+	event.timer(10, FusionReactor.sendKeepalive, math.huge)
+	event.timer(5, FusionReactor.loopFunc, math.huge)
+end
+
+FusionReactor.defaultComponents = {
+	laserCharge = {Value = "", Desc = "Redstone, Laser charge interrupt (off = not charging)"}; -- Redstone (off = not charging)
+	laserReader = {Value = "", Desc = "Adapter, Laser Amplifier"}; -- Adapter attacked to laser emitter
+	laserFire = {Value = "", Desc = "Redstone, Laser firing signal (on = fire)"}; -- Redstone (on = fire)
+	reactorInterface = {Value = "", Desc = "Adapter, Reactor Logic Adapter"}; -- Adapter attached to reactor logic adapter
+	mixInjector = {Value = "", Desc = "Redstone, DT Mix injector signal (on = inject)"}; -- Redstone (on = fire)
+}
+
+FusionReactor.load = function(config)
+	if (not config.FusionComponents) then
+		config.FusionComponents = FusionReactor.defaultComponents 
+	end
+	for i,p in pairs(FusionReactor.defaultComponents) do
+		config.FusionComponents[i] = config.FusionComponents[i] or p
+	end
+end
+
+FusionReactor.registerCommands = function()
+	Commands.registerCommand("injectionRate", FusionReactor.injectionRateFunc, "View/Set Reactor injection rate", "[rate]")
+	Commands.registerCommand("ignite", FusionReactor.igniteFunc, "Ignite Fusion Reactor (Will only fire if reactor is charged and ready to ignite)", "[delay]")
+	Commands.registerCommand("stop", FusionReactor.stopFunc, "Set injection rate to zero", "")
+	Commands.registerCommand("startCharging", FusionReactor.startChargingFunc, "Enable Reactor Laser charging circuit", "")
+	Commands.registerCommand("stopCharging", FusionReactor.stopChargingFunc, "Disable Reactor Laser charging circuit", "")
+	Commands.registerCommand("setCompAddress", FusionReactor.setCompAddressFunc, "Set reactor control component addresses", "name, UUID")
+	Commands.registerCommand("listCompAddresses", FusionReactor.listComponentsFunc, "Print list of Fusion Reactor component addresses", "")
+	Commands.registerCommand("status", FusionReactor.statusFunc, "Print status of Fusion Reactor and laser assembly", "")
+	Commands.registerCommand("injectMix", FusionReactor.injectMixFunc, "Enable D-T injection directly into the reactor chamber", "[duration (defaults to 0.1)]")
+	Commands.registerCommand("stopInjectingMix", FusionReactor.stopInjectingMixFunc, "Emergency shutoff for Mix Injector", "")
+end
+
+FusionReactor.setup = function()
+	
+end
+
+FusionReactor.sendKeepalive = function()
+	network.sendKeepalivePacket()
+end
+
+FusionReactor.injectionRateFunc = function(num)
+	local response = newResponse()
+	local c = FusionReactor.getComponentProxy("reactorInterface")
+	if (not c) then print("No reactorInterface detected") response.print("No reactorInterface detected") return true, response end
+	if (num == nil) then
+		print("Current injection rate: "..c.getInjectionRate())
+		response.print("Current injection rate: "..c.getInjectionRate())
+		return true, response
+	end
+	num = tonumber(num) or 0
+	c.setInjectionRate(num)
+	print("Set injection rate to "..num)
+	response.print("Set injection rate to "..num)
+	return true, response
+end
+
+FusionReactor.igniteFunc = function(delay)
+	local response = newResponse()
+	local c = FusionReactor.getComponentProxy("laserFire")
+	if (not c) then print("No laserFire detected") response.print("No laserFire detected") return true, response end
+	local r = FusionReactor.getComponentProxy("reactorInterface")
+	if (not r) then print("No reactorInterface detected") response.print("No reactorInterface detected") return true, response end
+	delay = math.max(5,tonumber(delay) or 5)
+	Shell.print("Preparing to ignite reactor")
+	event.timer(delay, function()
+		for i=0,5 do
+			c.setOutput(i,15)
+		end
+		Shell.print("Fusion Reactor Ignition Laser has Fired")
+		network.notifications.broadcast("Fusion Reactor Ignition Laser has Fired")
+	end)
+	event.timer(delay+0.5, function()
+		for i=0,5 do
+			c.setOutput(i,0)
+		end
+	end)
+	event.timer(delay+5, function()
+		if (r.isIgnited) then
+			Shell.print("Fusion Reactor has successfully ignited")
+			network.notifications.broadcast("Fusion Reactor has successfully ignited")
+		else
+			Shell.print("Fusion Reactor ignition has failed")
+			network.notifications.broadcast("Fusion Reactor ignition has failed")
+		end
+	end)
+	return true, response
+end
+
+FusionReactor.stopFunc = function()
+	local response = newResponse()
+	local c = FusionReactor.getComponentProxy("reactorInterface")
+	if (not c) then print("No reactorInterface detected") response.print("No reactorInterface detected") return true, response end
+	c.setInjectionRate(0)
+	Shell.print("Reactor Injectors deactivated")
+	return true, response
+end
+
+FusionReactor.injectMixFunc = function(duration)
+	local response = newResponse()
+	duration = math.max(0.1, tonumber(duration) or 0.1)
+	local c = FusionReactor.getComponentProxy("mixInjector")
+	if (not c) then print("No mixInjector detected") response.print("No mixInjector detected") return true, response end
+	for i=0,5 do
+		c.setOutput(i,15)
+	end
+	Shell.print("Mix Injector activated for "..duration.." seconds")
+	response.print("Mix Injector activated for "..duration.." seconds")
+	event.timer(duration, function()
+		for i=0,5 do
+			c.setOutput(i,0)
+		end
+		Shell.print("Mix Injector deactivated")
+	end)
+	return true, response
+end
+
+FusionReactor.stopInjectingMixFunc = function()
+local response = newResponse()
+	local c = FusionReactor.getComponentProxy("mixInjector")
+	if (not c) then print("No mixInjector detected") response.print("No mixInjector detected") return true, response end
+	for i=0,5 do
+		c.setOutput(i,0)
+	end
+	Shell.print("Mix Injector deactivated")
+	response.print("Mix Injector deactivated")
+	return true, response
+end
+
+FusionReactor.startChargingFunc = function()
+	local response = newResponse()
+	local c = FusionReactor.getComponentProxy("laserCharge")
+	if (not c) then print("No laserCharge detected") response.print("No laserCharge detected") return true, response end
+	if (c.getOutput(0) > 1) then print("Laser charging circuit already activated") response.print("Laser charging circuit already activated") return true, response end
+	for i=0,5 do
+		c.setOutput(i,15)
+	end
+	Shell.print("Laser charging circuit activated")
+	response.print("Laser charging circuit activated")
+	return true, response
+end
+
+FusionReactor.stopChargingFunc = function()
+	local response = newResponse()
+	local c = FusionReactor.getComponentProxy("laserCharge")
+	if (not c) then print("No laserCharge detected") response.print("No laserCharge detected") return true, response end
+	if (c.getOutput(0) < 1) then print("Laser charging circuit already deactivated") response.print("Laser charging circuit already deactivated") return true, response end
+	for i=0,5 do
+		c.setOutput(i,0)
+	end
+	Shell.print("Laser charging circuit deactivated")
+	response.print("Laser charging circuit deactivated")
+	return true, response
+end
+
+FusionReactor.setCompAddressFunc = function(name, address)
+	if (not name) or (not address) then return false end
+	local response = newResponse()
+	local addressList = Device.currentConfig.FusionComponents
+	if (addressList[name]) then
+		local realAddress = component.get(address)
+		if (not realAddress) then print("Component does not exist") response.print("Component does not exist") return true, response end
+		addressList[name].Value = realAddress
+		Shell.print(name.." assigned to {"..realAddress.."}")
+	else
+		Shell.print("Component name incorrect")
+		response.print("Component name incorrect")
+	end
+	Device.saveConfig()
+	return true, response
+end
+
+FusionReactor.listComponentsFunc = function()
+	local response = newResponse()
+	for i,p in pairs(Device.currentConfig.FusionComponents) do
+		Shell.print(i.."        "..p.Desc.."  {"..p.Value.."}")
+		response.print(i.."        "..p.Desc.."  {"..p.Value.."}")
+	end
+	return true, response
+end
+
+FusionReactor.statusFunc = function()
+	local response = newResponse()
+	local laserCharge = FusionReactor.getComponentProxy("laserCharge")
+	if (not laserCharge) then print("No laserCharge detected") response.print("No laserCharge detected") return true, response end
+	local reactor = FusionReactor.getComponentProxy("reactorInterface")
+	if (not reactor) then print("No reactorInterface detected") response.print("No reactorInterface detected") return true, response end
+	local laserReader = FusionReactor.getComponentProxy("laserReader")
+	if (not laserReader) then print("No laserReader detected") response.print("No laserReader detected") return true, response end
+	
+	
+	local str = ""
+	str = str.."   -- LASER --   ".."\n"
+	local laserEnergy = math.floor(laserReader.getEnergy()/1000000)
+	local laserMaxEnergy = math.floor(laserReader.getMaxEnergy()/1000000)
+	str = str.."Stored Energy: "..laserEnergy.."MJ \n"
+	str = str.."Maximum Energy: "..laserMaxEnergy.."MJ \n"
+	str = str.."Minimum Ignition energy: 1500MJ \n"
+	if (laserEnergy > 1500) then
+		str = str.."Enough energy to ignite reaction \n"
+	else
+		str = str.."Not enough energy to ignite reaction \n"
+	end
+	str = str.."   -- REACTOR --   ".."\n"
+	if (reactor.isIgnited()) then
+		str = str.."      Running      "
+	else
+		str = str.."    Not Running    "
+	end
+	Shell.print(str)
+	response.print(str)
+	return true, response
+end
+
+FusionReactor.prevRunning = false
+
+FusionReactor.loopFunc = function()
+	local laserCharge = FusionReactor.getComponentProxy("laserCharge")
+	local laserReader = FusionReactor.getComponentProxy("laserReader")
+	local reactor = FusionReactor.getComponentProxy("reactorInterface")
+	if (not laserCharge) or (not laserReader) or (not reactor) then return end
+	local igniteEnergy = 1500
+	local laserEnergy = math.floor(laserReader.getEnergy()/1000000)
+	if (laserEnergy > igniteEnergy) and (laserCharge.getOutput(0) > 1) then
+		for i=0,5 do
+			laserCharge.setOutput(i,0)
+		end
+		Shell.print("Fusion Reactor Laser Assembly has completed charging cycle")
+		Shell.print("Laser charging circuit deactivated")
+		network.notifications.broadcast("Fusion Reactor Laser Assembly has completed charging cycle \nLaser charging circuit deactivated")
+	end
+	local currRunning = reactor.isIgnited()
+	if (not currRunning) and (prevRunning) then 
+		Shell.print("Fusion Reactor has deactivated")
+		network.notifications.broadcast("Fusion Reactor has deactivated")
+
+	else
+		prevRunning = currRunning
+	end
+end
+
+FusionReactor.getComponent = function(name)
+	local addressList = Device.currentConfig.FusionComponents
+	if (addressList[name]) then
+		return addressList[name].Value
+	end
+end
+
+FusionReactor.getComponentProxy = function(name)
+	local addressList = Device.currentConfig.FusionComponents
+	if (addressList[name]) then
+		return component.proxy(addressList[name].Value)
+	end
+end
+
+FusionReactor.powerOff = function()
+	
+end
+
+
+
+
+
+
+
+
+return FusionReactor

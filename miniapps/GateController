@@ -46,7 +46,7 @@ component_code()
 text = text_code()
 filesystem = fs_code()
 fs = filesystem
-keyboard = dofile("keyboard.lua")
+keyboard = dofile("Keyboard.lua")
 term = terminal_code()
 
 network = dofile("network")

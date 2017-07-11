@@ -9,33 +9,47 @@ end
 
 Tablet.load = function(config)
 	if (not config.GateRegistry) then config.GateRegistry = {} end
+	if (not config.PersonalGateRegistry) then config.PersonalGateRegistry = {} end
 end
 
 Tablet.registerCommands = function()
-	Commands.registerCommand("dialGate", Tablet.dialGateCommand, "Broadcast DialOut packet for un-networked gates", "<dialAddress/savedAddressName>")
+	Commands.registerCommand("dialGate", Tablet.dialGateCommand, "Broadcast DialOut packet for un-networked gates", "dialAddress/savedAddressName [-p]")
 	Commands.registerCommand("closeGate", Tablet.closeGateCommand, "Broadcast Terminate packet for un-networked gates", "")
-	Commands.registerCommand("registerGate", Tablet.registerGateCommand, "Register gate to server GateRegistry", "")
-	Commands.registerCommand("unregisterGate", Tablet.unregisterGateCommand, "Unregister gate from server GateRegistry", "")
+	Commands.registerCommand("registerGate", Tablet.registerGateCommand, "Register gate to server GateRegistry", "name, address, [-p]")
+	Commands.registerCommand("unregisterGate", Tablet.unregisterGateCommand, "Unregister gate from server GateRegistry", "name, [-p]")
 	Commands.registerCommand("listGates", Tablet.listGates, "List GateRegistry cache", "")
+	Commands.registerCommand("listPersonalGates", Tablet.listPersonalGates, "List personal GateRegistry", "")
 	Commands.registerCommand("fetchGateRegistry", Tablet.fetchGateRegistryCommand, "Manually fetch GateRegistry from Server", "")
 end
 
-Tablet.registerGateCommand = function(gateName, address)
+Tablet.registerGateCommand = function(gateName, address, switch1)
 	gateName = tostring(gateName) or ""
 	address = tostring(address) or ""
 	if (gateName == "") or (gateName == " ") or (address == "") or (address == " ") then return false end
-	local outPkt = {Header = "RegisterGate", GateName = gateName, GateAddress = address}
-	network.sendPacket(network.Ports.Stargate, outPkt, false)
-	print("GateRegister packet sent")
+	if (switch1 == "-p") then
+		Device.currentConfig.PersonalGateRegistry[gateName] = address
+		print("Personal GateRegistry updated")
+	else
+		local outPkt = {Header = "RegisterGate", GateName = gateName, GateAddress = address}
+		network.sendPacket(network.Ports.Stargate, outPkt, false)
+		print("GateRegister packet sent")
+	end
+	Device.saveConfig()
 	return true
 end
 
-Tablet.unregisterGateCommand = function(gateName)
+Tablet.unregisterGateCommand = function(gateName, switch1)
 	gateName = tostring(gateName) or ""
 	if (gateName == "") or (gateName == " ") then return false end
-	local outPkt = {Header = "UnregisterGate", GateName = gateName}
-	network.sendPacket(network.Ports.Stargate, outPkt, false)
-	print("GateUnregister packet sent")
+	if (switch1 == "-p") then
+		Device.currentConfig.PersonalGateRegistry[gateName] = nil
+		print("Personal GateRegistry updated")
+	else
+		local outPkt = {Header = "UnregisterGate", GateName = gateName}
+		network.sendPacket(network.Ports.Stargate, outPkt, false)
+		print("GateUnregister packet sent")
+	end
+	Device.saveConfig()
 	return true
 end
 
@@ -52,6 +66,19 @@ Tablet.listGates = function()
 	return true
 end
 
+Tablet.listPersonalGates = function()
+	local num = 0
+	local str = ""
+	for i,p in pairs(Device.currentConfig.PersonalGateRegistry) do
+		str = str..i.."  ("..p..")\n"
+		num = num + 1
+	end
+	str = str..num.." Registered "
+	if (num > 1) and (num ~= 0) then str=str.."Gates" else str=str.."Gate" end
+	printPaged(str)
+	return true
+end
+
 Tablet.fetchGateRegistryCommand = function()
 	local outPkt = {Header = "FetchGateRegistry"}
 	network.sendPacket(network.Ports.Stargate, outPkt, false)
@@ -59,13 +86,16 @@ Tablet.fetchGateRegistryCommand = function()
 	return true
 end
 
-Tablet.dialGateCommand = function(dialAddress)
+Tablet.dialGateCommand = function(dialAddress, switch1)
 	dialAddress = tostring(dialAddress)
 	if (not dialAddress) or (dialAddress == "") or (dialAddress == " ") then return false end
 	local sendAddress = dialAddress
-	if (Device.currentConfig.GateRegistry[dialAddress] ~= nil) then
+	if (Device.currentConfig.GateRegistry[dialAddress] ~= nil) and (switch1 ~= "-p") then
 		print("Found GateRegistry entry for "..dialAddress.." {"..Device.currentConfig.GateRegistry[dialAddress].."}")
 		sendAddress = Device.currentConfig.GateRegistry[dialAddress]
+	elseif (switch1 == "-p") and (Device.currentConfig.PersonalGateRegistry[dialAddress] ~= nil) then
+		print("Found Personal GateRegistry entry for "..dialAddress.." {"..Device.currentConfig.GateRegistry[dialAddress].."}")
+		sendAddress = Device.currentConfig.PersonalGateRegistry[dialAddress]
 	end
 	print("Sending DialOut packet...")
 	local packet = {Header = "dialGate", DialAddress = sendAddress}
@@ -113,7 +143,6 @@ Tablet.gateNetworkListener = function(_, localNetworkCard, remoteAddress, port, 
 			Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").." has established a stable connection from "..(packet.RemoteAddress or "REMOTE_ADDRESS_ERROR"))
 		end
 	elseif (packet.Header == "GateRegistryBroadcast") or (packet.Header == "GateRegistryFetched") then
-		print("regUpPkt")
 		if (not packet.Registry) then return end
 		Shell.print("Received GateRegistry update")
 		Device.currentConfig.GateRegistry = packet.Registry

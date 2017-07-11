@@ -83,7 +83,7 @@ end
 Commands.registerCommand("setDeviceName", deviceNameFunc, "Sets name of local device", "name")
 
 local deviceDriverFunc = function(newDriver) -- SET DEVICE DRIVER
-	local response = {}
+	local response = newResponse()
 	local newDriver = tostring(newDriver)
 	if (newDriver == nil) or (newDriver == "") or (newDriver == " ") then return false end
 	if (Device.driverList[newDriver] == nil) then print("Driver does not exist") response.print("Driver does not exist") end
@@ -185,11 +185,23 @@ end
 
 Commands.registerCommand("installMiniApp", installMiniappFunc, "Install a MiniApplication to the specified drive", "driveLetter, appName")
 
+Commands.registerCommand("listMiniApps", function() local res = newResponse() for i,p in pairs(Device.miniAppList) do print(p.Name.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
 
+local listComponentMethodsFunc = function(uuid) -- Print list of component methods
+	local response = newResponse()
+	local c = component.get(uuid)
+	if (not c) then
+		print("Component does not exist")
+		response.print("Component does not exist")
+		return true, response
+	end
+	local s = serialization.serialize(component.proxy(c), 10000)
+	response.printPaged(s)
+	printPaged(s)
+	return true, response
+end
 
-
-
-
+Commands.registerCommand("listComponentMethods", listComponentMethodsFunc, "List methods for component", "UUID (can be partial)")
 
 
 

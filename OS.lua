@@ -51,7 +51,7 @@ component_code()
 text = text_code()
 filesystem = fs_code()
 fs = filesystem
-keyboard = dofile("keyboard.lua")
+keyboard = dofile("/Keyboard.lua")
 term = terminal_code()
 
 event_code, component_code, text_code, fs_code, terminal_code = nil, nil, nil, nil, nil
@@ -104,6 +104,16 @@ function newResponse()
 	end
 	tbl.getResponse = function() return tbl.contents end
 	return tbl
+end
+
+function mapToKeyPair(tbl)
+	local nt = {}
+	local n = 1
+	for i,p in pairs(tbl) do
+		nt[n] = p
+		n = n + 1
+	end
+	return nt
 end
 
 OS.runfile = runfile

@@ -157,8 +157,8 @@ Packager.installMiniAppToDrive = function(drive, appFile)
 	Packager.copyOSFileToDrive(proxy, "/CoreLibs.lua", "/CoreLibs.lua")
 	Packager.copyOSFileToDrive(proxy, "/Keyboard.lua", "/Keyboard.lua")
 	Packager.copyOSFileToDrive(proxy, appFile, "/OS.lua")
-	for f in filesystem.list("/Modules/") do
-		Packager.copyOSFileToDrive(proxy, "/Modules/"..f, "/"..f)
+	for f in filesystem.list("/modules/") do
+		Packager.copyOSFileToDrive(proxy, "/modules/"..f, "/"..f)
 	end
 	return true
 end
@@ -172,8 +172,8 @@ Packager.installMiniAppToDriveProxy = function(proxy, appFile)
 	Packager.copyOSFileToDrive(proxy, "/CoreLibs.lua", "/CoreLibs.lua")
 	Packager.copyOSFileToDrive(proxy, "/Keyboard.lua", "/Keyboard.lua")
 	Packager.copyOSFileToDrive(proxy, appFile, "/OS.lua")
-	for f in filesystem.list("/Modules/") do
-		Packager.copyOSFileToDrive2(proxy, "/Modules/"..f, "/"..f)
+	for f in filesystem.list("/modules/") do
+		Packager.copyOSFileToDrive2(proxy, "/modules/"..f, "/"..f)
 	end
 	return true
 end
