@@ -104,7 +104,7 @@ Commands.registerCommand("memory", function() local res = newResponse() print(OS
 
 Commands.registerCommand("energy", function() local res = newResponse() print(OS.powerMsgStr()) res.print(OS.powerMsgStr()) return true, res end, "Displays energy status", "")
 
-Commands.registerCommand("shutdown", function() print("Shutting Downn") OS.sleep(1) network.sendShutdownPacket() Device.saveConfig() Device.Driver.powerOff() computer.shutdown() return true end, "Soft poweroff", "")
+Commands.registerCommand("shutdown", function() print("Shutting Downn") OS.sleep(1) network.sendShutdownPacket() Device.saveConfig() if (Device.Driver) then Device.Driver.powerOff() end computer.shutdown() return true end, "Soft poweroff", "")
 
 local rebootCommand = function()
 	if (Device.updatePackage ~= nil) then
@@ -118,14 +118,14 @@ local rebootCommand = function()
 		OS.sleep(3)
 		network.sendShutdownPacket()
 		Device.saveConfig()
-		Device.Driver.powerOff()
+		if (Device.Driver) then Device.Driver.powerOff() end
 		computer.shutdown(true)
 	else
 		print("Rebooting")
 		OS.sleep(1)
 		network.sendShutdownPacket()
 		Device.saveConfig()
-		Device.Driver.powerOff()
+		if (Device.Driver) then Device.Driver.powerOff() end
 		computer.shutdown(true)
 	end
 end
@@ -165,6 +165,22 @@ local installFunc = function(driveLetter) -- INSTALL TO DRIVE
 end
 
 Commands.registerCommand("install", installFunc, "Install OS to the specified drive", "driveLetter")
+
+local createInstallerFunc = function(driveLetter) -- CREATE INSTALLER FILES
+	local response = newResponse()
+	local driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
+	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
+	local proxy = fs.drive.letterToProxy(driveLetter)
+	if (not proxy) then print("Drive does not exist") response.print("Drive does not exist") return true, response end
+	print("creating installer files on drive "..driveLetter)
+	response.print("creating installer files on drive "..driveLetter)
+	local insProg, insData = Packager.assembleInstallFiles()
+	Packager.writeFile(proxy, "/Installer", insProg)
+	Packager.writeFile(proxy, "/InstallData", insData)
+	return true, response
+end
+
+Commands.registerCommand("createInstallFiles", createInstallerFunc, "Create installer files", "driveLetter")
 
 local installMiniappFunc = function(driveLetter, appName)
 	if (not appName) or (appName == "") or (appName == " ") then return false end

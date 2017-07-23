@@ -1,7 +1,8 @@
 OS = {}
 OS.Name = "StattenOS"
-OS.Version = "0.0"
+OS.Version = "0.0.1"
 OS.modules = {}
+OS.allowedRootFiles = {"drivers/", "miniapps/", "modules/", "tmp/", "config", "CoreLibs.lua", "init.lua", "Keyboard.lua", "OS.lua"}
 
 function OS.sleep(timeout)
 	checkArg(1, timeout, "number", "nil")
@@ -44,7 +45,7 @@ function dofile(file)
   end
 end
 
---core libs
+-- core libraries
 
 event = event_code()
 component_code()
@@ -63,11 +64,11 @@ if term.isAvailable() then
   component.gpu.setResolution(component.gpu.getResolution())
   component.gpu.setBackground(0x000000)
   component.gpu.setForeground(0xFFFFFF)
-  term.setCursorBlink(true)
+  term.setCursorBlink(false)
   term.clear()
 end
 
-print("Starting " .. OS.Name .. "...\n")
+print("Starting "..OS.Name.." "..OS.Version)
 
 function kernelError()
 	printErr("\nPress any key to try again.")
@@ -141,28 +142,29 @@ print()
 
 loadModules("/modules/")
 
--- Start modules
-
-print()
-print("== Init Modules ==")
-print()
-
 initDrive = fs.drive.getcurrent()
 
-for i,p in pairs(OS.modules) do
-	if (p.init ~= nil) then
-		p.init()
+function doInit() -- Initalize modules
+	print()
+	print("== Initalize Modules ==")
+	print()
+	
+	for i,p in pairs(OS.modules) do
+		if (p.init ~= nil) then
+			p.init()
+		end
 	end
-end
 
-for i,p in pairs(OS.modules) do
-	if (p.step ~= nil) then
-		event.timer(p.stepInterval or 1, p.step, math.huge)
+	for i,p in pairs(OS.modules) do
+		if (p.step ~= nil) then
+			event.timer(p.stepInterval or 1, p.step, math.huge)
+		end
 	end
+	print()
 end
 
 print()
-print("All modules loaded")
+print("All modules loaded into Memory")
 print()
 print("Memory: "..tostring(math.floor((computer.totalMemory() - computer.freeMemory())/1024)).."KB used / "..tostring(math.floor(computer.totalMemory()/1024)).."KB total")
 print()
@@ -193,8 +195,6 @@ end
 network.registerNetworkListener(lf)
 --]]
 
-term.setCursorBlink(false)
-
 OS.memAverages = {}
 
 OS.averageMem = function()
@@ -206,15 +206,41 @@ OS.averageMem = function()
 	return t
 end
 
+OS.doesTableContainString = function(tbl, str, caseSensitive)
+	if (caseSensitive == nil) then caseSensitive = true end
+	for i,p in pairs(tbl) do
+		if (caseSensitive) then
+			if (i == str) or (p == str) then return true end
+		else
+			if (i:lower() == str:lower()) or (p:lower() == str:lower()) then return true end
+		end
+	end
+	return false
+end
 
+print("== Cleaning Root Directory ==")
+for f in filesystem.list("/") do -- remove unwanted files from root
+	if (not OS.doesTableContainString(OS.allowedRootFiles, f, true)) then
+		if (f:sub(f:len(), f:len()) == "/") then f = f:sub(0,f:len()-1) end -- remove '/' postfixed to directories
+		filesystem.remove(f)
+		print("Removed /"..f)
+	end
+end
+print()
+
+doInit() -- Initalize modules
 
 local sec = 0
+local memSec = 0
 while true do
-	OS.sleep(0.05)
-	sec = sec + 0.05
+	OS.sleep(0.01)
+	sec = sec + 0.01
+	memSec = memSec + 0.01
 	if (sec > 1) then sec = 0 end
-	table.insert(OS.memAverages, computer.freeMemory())
-	if (#OS.memAverages > 100) then table.remove(OS.memAverages, 1) end
+	if (memSec > 1) then
+		table.insert(OS.memAverages, computer.freeMemory())
+		if (#OS.memAverages > 20) then table.remove(OS.memAverages, 1) end
+	end
 end
 
 

@@ -1,11 +1,10 @@
 local Device = {}
 
 Device.driverList = {
-	Server = {Name = "Server", desc = "Central control server for networked devices", file = "Server"};
-	Redstone = {Name = "Redstone", desc = "Hub for controlling redstone signals", file = "Redstone"};
+	Default = {Name = "Default", desc = "Default, no special function"};
+	Server = {Name = "Server", desc = "Central control server for networked devices"};
 	Tablet = {Name = "Tablet", desc = "Remote control terminal", file = "Tablet"};
-	Terminal = {Name = "Terminal", desc = "Wired terminal", file = "Terminal"};
-	Fusion_Reactor = {Name = "Fusion_Reactor", desc = "Used to control the Mekanism Fusion Reactor", file = "Fusion_Reactor"};
+	Fusion_Reactor = {Name = "Fusion_Reactor", desc = "Used to control the Mekanism Fusion Reactor"};
 }
 
 Device.miniAppList = {
@@ -15,7 +14,7 @@ Device.miniAppList = {
 
 Device.currentConfig = {
 	Name = computer.address():sub(1,8);
-	Driver = "Server";
+	Driver = "Default";
 }
 
 Device.Driver = nil
@@ -93,7 +92,7 @@ Device.commandFailResponse = function(deviceName)
 	network.sendPacket(network.Ports.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = {{Type = "print", text = "Internal Error"}}}, false)
 end
 
-Device.updateListener = function(_, FileName, FilePath) --FTP Listener
+Device.updateListener = function(_, FileName, FilePath) -- FTP event Listener
 	if (FileName == "UpdatePackage") then
 		Shell.print("Received update package, run 'reboot' to install update and reboot")
 		Device.updatePackage = FilePath
@@ -104,20 +103,22 @@ Device.init = function()
 	Device.loadConfig()
 	print("Loading Device Driver '"..Device.currentConfig.Driver.."'")
 	local driverPath = "/drivers/"..Device.currentConfig.Driver
-	if (not filesystem.exists(driverPath)) then print("Unable to load driver, defaulting to generic device") return end
-	Device.Driver = dofile(driverPath)
-	if (not Device.Driver) then print("Unable to load driver, defaulting to generic device") return end
-	Device.Driver.load(Device.currentConfig)
-	Device.Driver.init()
-	Device.Driver.registerCommands()
-	Device.saveConfig()
+	if (filesystem.exists(driverPath)) then
+		Device.Driver = dofile(driverPath)
+		if (Device.Driver) then
+			Device.Driver.load(Device.currentConfig)
+			Device.Driver.init()
+			Device.Driver.registerCommands()
+			Device.saveConfig()
+		end
+	end
 	print("Device Name: "..Device.currentConfig.Name)
 	network.registerNetworkListener(Device.commandListener)
 	network.ftp.registerFtpListener(Device.updateListener)
-	--set label
+	-- set label
 	local dProxy = fs.drive.letterToProxy(initDrive)
 	dProxy.setLabel(Device.currentConfig.Name)
-	--send notification to server
+	-- send notification to server
 	network.sendKeepalivePacket()
 end
 

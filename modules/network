@@ -72,8 +72,9 @@ network.closePort = function(port)
 	return modem.close(port)
 end
 
-network.registerNetworkListener = function(func)
+network.registerNetworkListener = function(func, name)
 	event.listen("modem_message", func)
+	if (name) then print("Registered NetworkListener "..name) end
 end
 
 network.sendKeepalivePacket = function()
@@ -136,7 +137,7 @@ network.ftp.sendFile = function(driveProxy, path, sendName, receiverName)
 		if (data) then
 			print("Sending "..data:len().."b Chunk")
 			network.ftp.sendPacket(sendName, receiverName, data)
-			OS.sleep(0.15)
+			OS.sleep(0.4)
 		end
 	until not data
 	network.ftp.sendFinished(sendName, receiverName, fileSize)
@@ -209,7 +210,21 @@ network.notifications.listener = function(_, localNetworkCard, remoteAddress, po
 	computer.beep(2000)
 end
 
+network.pingListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not port) then return end
+	if (port ~= 0) and (port ~= network.Ports.Keepalive) and (port ~= network.Ports.General) then return end
+	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	local packet = serialization.unserialize(inpkt)
+	if (not packet) then return end
+	if (not packet.Header) or (not packet.Sender)  then return end
+	if (packet.Header ~= "ServerPing") then return end
+	--Shell.print("Responding to Server Ping")
+	network.sendKeepalivePacket()
+end
 
+network.registerPingListener = function()
+	network.registerNetworkListener(network.pingListener, "PingListener")
+end
 
 
 

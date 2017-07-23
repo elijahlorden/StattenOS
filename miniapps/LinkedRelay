@@ -76,7 +76,7 @@ while true do
 		local sendPort = network.Ports[desPkt.PortName] or network.Ports.General
 		component.modem.broadcast(sendPort, inpkt)
 		print("Received Linked Message, forwarding to network (Port "..sendPort..")")
-	elseif (port ~= network.Ports.Keepalive) then
+	else
 		sendToLinkedCards(inpkt)
 		print("Received network message on Port "..port..", forwarding to linked card")
 	end

@@ -1,10 +1,10 @@
 local Tablet = {}
 
 Tablet.init = function()
-	event.timer(10, Tablet.sendKeepalive, math.huge)
 	network.registerNetworkListener(Tablet.gateNetworkListener)
 	local fetchPkt = {Header = "FetchGateRegistry"}
 	network.sendPacket(network.Ports.Stargate, fetchPkt, false)
+	network.registerPingListener()
 end
 
 Tablet.load = function(config)

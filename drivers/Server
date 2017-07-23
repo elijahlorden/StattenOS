@@ -1,16 +1,17 @@
 local Server = {}
 
-Server.deviceList = {[network.acceptedServerName] = {Name = network.acceptedServerName, Type = "Server", ConnectionTime = 0, Address = component.modem.address}} -- Name = {Name = name, Type = driverName, ConnectionTime = 0, Address = address}
+Server.deviceList = {[network.acceptedServerName] = {Name = network.acceptedServerName, Type = "Server", Address = component.modem.address, Pinged = true}} -- Name = {Name = name, Type = driverName, ConnectionTime = 0, Address = address}
 
 
-Server.tickInterval = 0.1
-Server.deviceTimeout = 20
+Server.lastPing = 0
+Server.pingTimeout = 10
 
 Server.connectBeep = 1500
 Server.disconnectBeep = 300
 
 Server.init = function()
-	event.timer(Server.tickInterval, Server.tickConnections, math.huge)
+	Server.pingDevices()
+	event.timer(40, Server.pingDevices, math.huge)
 	network.registerNetworkListener(Server.networkListener)
 end
 
@@ -31,6 +32,15 @@ end
 Server.registerCommands = function()
 	Commands.registerCommand("listDevices", Server.listDeviceCmd , "Lists currently connected devices, add TypeFilter to filter devices by type", "[TypeFilter]")
 	Commands.registerCommand("sendUpdate", Server.updateCmd , "Package OS currently installed on Server and send it to networked devices.", "[DeviceName]")
+	Commands.registerCommand("ping", Server.pingCmd , "Ping network for active devices", "")
+end
+
+Server.pingCmd = function()
+	local response = newResponse()
+	response.print("Pinging network...")
+	Shell.print("Pinging network")
+	Server.pingDevices()
+	return true, response
 end
 
 Server.updateCmd = function(deviceName)
@@ -84,10 +94,11 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 	if (not packet.Header) or (not packet.Sender) or (not packet.SenderType) then return end
 	if (packet.Header ~= "Shutdown") then
 		if (Server.deviceList[packet.Sender] ~= nil) then
-			Server.deviceList[packet.Sender].ConnectionTime = 0
+			Server.deviceList[packet.Sender].Pinged = true
 			Server.deviceList[packet.Sender].Address = remoteAddress
+			--Shell.print(packet.Sender.." Responded to network ping")
 		else
-			Server.deviceList[packet.Sender] = {Name = packet.Sender, Type = packet.SenderType, ConnectionTime = 0, Address = remoteAddress}
+			Server.deviceList[packet.Sender] = {Name = packet.Sender, Type = packet.SenderType, Address = remoteAddress, Pinged = true}
 			Shell.print("Network Device "..packet.Sender.." ("..packet.SenderType..") Connected")
 			computer.beep(Server.connectBeep)
 		end
@@ -96,7 +107,7 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 	if (packet.Header == "Shutdown") then
 		if (Server.deviceList[packet.Sender] ~= nil) then
 			Server.deviceList[packet.Sender] = nil
-			Shell.print(packet.Sender.." Disconnected")
+			Shell.print(packet.Sender.." Disconnected (Reason: Shutting Down)")
 			computer.beep(Server.disconnectBeep)
 		end
 	elseif (packet.Header == "FetchGateRegistry") then
@@ -125,17 +136,24 @@ Server.sendGateRegistryBroadcast = function()
 	Shell.print("Broadcasted GateRegistry update")
 end
 
-Server.tickConnections = function()
-	for i,d in pairs(Server.deviceList) do
-		if (i ~= network.acceptedServerName) then
-			d.ConnectionTime = d.ConnectionTime + Server.tickInterval
-			--Shell.print(d.Name.." : "..d.ConnectionTime)
-			if (d.ConnectionTime > 20) then Server.deviceList[i] = nil Shell.print(i.." Disconnected") computer.beep(Server.disconnectBeep) end
-		end
+Server.pingDevices = function()
+	local outPkt = {Header = "ServerPing", Registry = Device.currentConfig.GateRegistry}
+	network.sendPacket(network.Ports.Keepalive, outPkt, false)
+	for i,p in pairs(Server.deviceList) do
+		p.Pinged = false
 	end
+	--Shell.print("Pinging network...")
+	
+	event.timer(Server.pingTimeout, function()
+		for i,p in pairs(Server.deviceList) do
+			if (not p.Pinged) and (p.Name ~= network.acceptedServerName) then
+				Shell.print(p.Name.." Disconnected (Reason: Timed Out)")
+				computer.beep(Server.disconnectBeep)
+				Server.deviceList[i] = nil
+			end
+		end
+	end)
 end
-
-
 
 
 

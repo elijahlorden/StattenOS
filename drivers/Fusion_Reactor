@@ -1,8 +1,8 @@
 local FusionReactor = {}
 
 FusionReactor.init = function()
-	event.timer(10, FusionReactor.sendKeepalive, math.huge)
 	event.timer(5, FusionReactor.loopFunc, math.huge)
+	network.registerPingListener()
 end
 
 FusionReactor.defaultComponents = {
@@ -37,10 +37,6 @@ end
 
 FusionReactor.setup = function()
 	
-end
-
-FusionReactor.sendKeepalive = function()
-	network.sendKeepalivePacket()
 end
 
 FusionReactor.injectionRateFunc = function(num)

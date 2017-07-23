@@ -1,6 +1,6 @@
 Shell = {}
 
-Shell.ShellBacklog = {{Type = "print", Text = "\n== Init Shell =="}} -- {Type = "print", Text = " "}
+Shell.ShellBacklog = {{Type = "print", Text = "\n== Loading complete =="}} -- {Type = "print", Text = " "}
 
 Shell.promptOpen = false
 

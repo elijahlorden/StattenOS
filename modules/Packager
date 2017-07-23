@@ -4,6 +4,93 @@ Packager.devKey = "b135baaf9837ed1ec7bcb629eaf1adbc"
 Packager.loggedUsr = "elijahlorden"
 Packager.loggedPss = "elijah24680"
 
+Packager.installProgPart1 = [[
+function JSONLib()
+
+]]
+
+Packager.installProgPart2 = [[
+
+end
+
+function installOS(path, packagedOS)
+	for i,p in pairs(packagedOS.Directories) do
+		fs.makeDirectory(p)
+	end
+	for i,p in pairs(packagedOS) do
+		if (i ~= "Directories") then
+			for fn,f in pairs(p) do -- path,data
+				print("Installing "..fn)
+				if (type(f):lower() == "string") then
+					local file = io.open(fn, "w")
+					file:write(f)
+					file:close()
+				end
+			end
+		end
+	end
+	
+	
+	
+end
+
+filesystem = require("filesystem")
+io = require("io")
+
+function installOS(packagedOS)
+	for i,p in pairs(packagedOS.Directories) do
+		filesystem.makeDirectory(p)
+	end
+	for i,p in pairs(packagedOS) do
+		if (i ~= "Directories") then
+			for fn,f in pairs(p) do -- path,data
+				print("Installing "..fn)
+				if (type(f):lower() == "string") then
+					local file, reason = io.open("/"..fn, "w")
+					if (not file) then print(reason) end
+					file:write(f)
+					file:close()
+				end
+			end
+		end
+	end
+end
+
+function wipe()
+	for f in filesystem.list("/") do
+		if (f:sub(f:len(), f:len()) == "/") then f = f:sub(0,f:len()-1) end
+		filesystem.remove(f)
+		print("Deleting "..f)
+	end
+end
+
+print("StattenOS Installer")
+local JSON = JSONLib()
+local file = io.open("/InstallData")
+local InstallData = file:read("*a")
+file:close()
+print("InstallData read into memory, decoding...")
+local OSTable = JSON.decode(InstallData)
+print("Decoded, procedding with install")
+print("wiping drive from root directory")
+wipe()
+print("wipe, complete, installing...")
+installOS(OSTable)
+print("Install complete.")
+]]
+
+
+Packager.assembleInstallFiles = function()
+	local OSproxy = fs.drive.letterToProxy("A")
+	local str = Packager.installProgPart1
+	local packagedOS = Packager.packageIntoTable()
+	local serializedOS = JSON.encode(packagedOS)
+	local JSONModule = Packager.getFileString("/modules/JSON")
+	str = str..JSONModule
+	str = str..Packager.installProgPart2
+	return str, serializedOS
+end
+
 Packager.packageIntoTable = function()
 	local tbl = {Directories = {}}
 	print("Packaging OS...")
@@ -19,7 +106,7 @@ Packager.processFolder = function(path, tbl)
 	for f in list do
 		OS.sleep(0.05)
 		if (filesystem.isDirectory(f)) and (not f:find("tmp")) then
-			Packager.processFolder(path..f.."/", tbl)
+			Packager.processFolder(path..f, tbl)
 		elseif (not filesystem.isDirectory(f)) then
 			if (f ~= "config") then
 				print("Packaging "..path..f)
