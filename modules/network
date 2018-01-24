@@ -226,7 +226,15 @@ network.registerPingListener = function()
 	network.registerNetworkListener(network.pingListener, "PingListener")
 end
 
-
+network.wrappedNetworkSignalGenerator = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not port) then return end
+	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	local packet = serialization.unserialize(inpkt)
+	if (not packet) then return end
+	if (not packet.Header) or (not packet.Sender) or (not packet.Receiver) then return end
+	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
+	computer.pushSignal("WrappedNetworkEvent", localNetworkCard, remoteAddress, port, distance, packet)
+end
 
 
 
@@ -237,6 +245,7 @@ end
 
 
 network.init = function()
+	event.listen("modem_message", network.wrappedNetworkSignalGenerator)
 	network.registerNetworkListener(network.ftp.listener)
 	network.registerNetworkListener(network.notifications.listener)
 	network.portInit()
