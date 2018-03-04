@@ -5,6 +5,7 @@ Device.driverList = {
 	Server = {Name = "Server", desc = "Central control server for networked devices"};
 	Tablet = {Name = "Tablet", desc = "Remote control terminal", file = "Tablet"};
 	Fusion_Reactor = {Name = "Fusion_Reactor", desc = "Used to control the Mekanism Fusion Reactor"};
+	Redstone = {Name = "Redstone", desc = "Used to control redstone"};
 }
 
 Device.miniAppList = {
