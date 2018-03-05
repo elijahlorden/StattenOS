@@ -50,6 +50,7 @@ keyboard = dofile("Keyboard.lua")
 term = terminal_code()
 
 network = dofile("network")
+Enum = dofile("Enum")
 serialization = dofile("serialization")
 
 event_code, component_code, text_code, fs_code, terminal_code = nil, nil, nil, nil, nil
@@ -80,30 +81,30 @@ end
 Gate = component.getPrimary("stargate")
 
 function sendOutgoingDialPacket()
-	local packet = {Header = "GateDiallingOut", GateAddress = Gate.localAddress(), RemoteAddress = Gate.remoteAddress()}
-	network.sendPacketWithoutLink(network.Ports.StargateResponse, packet, true)
+	local packet = {Header = Enum.Header.Gate.GATEDIALLINGOUT, GateAddress = Gate.localAddress(), RemoteAddress = Gate.remoteAddress()}
+	network.sendPacketWithoutLink(Enum.Port.StargateResponse, packet, true)
 end
 
 function sendConnectedPacket(direction)
-	local packet = {Header = "GateConnected", GateAddress = Gate.localAddress(), RemoteAddress = Gate.remoteAddress(), Direction = direction}
-	network.sendPacketWithoutLink(network.Ports.StargateResponse, packet, true)
+	local packet = {Header = Enum.Header.Gate.GATECONNECTED, GateAddress = Gate.localAddress(), RemoteAddress = Gate.remoteAddress(), Direction = direction}
+	network.sendPacketWithoutLink(Enum.Port.StargateResponse, packet, true)
 end
 
 function sendIncomingDialPacket()
-	local packet = {Header = "GateDiallingIn", GateAddress = Gate.localAddress(), RemoteAddress = Gate.remoteAddress()}
-	network.sendPacketWithoutLink(network.Ports.StargateResponse, packet, true)
+	local packet = {Header = Enum.Header.Gate.GATEDIALLINGIN, GateAddress = Gate.localAddress(), RemoteAddress = Gate.remoteAddress()}
+	network.sendPacketWithoutLink(Enum.Port.StargateResponse, packet, true)
 end
 
 function sendClosingPacket()
-	local packet = {Header = "GateClosing", GateAddress = Gate.localAddress()}
-	network.sendPacketWithoutLink(network.Ports.StargateResponse, packet, true)
+	local packet = {Header = Enum.Header.Gate.GATECLOSING, GateAddress = Gate.localAddress()}
+	network.sendPacketWithoutLink(Enum.Port.StargateResponse, packet, true)
 end
 
 
 
 function networkListener(_, localNetworkCard, remoteAddress, port, distance, inpkt)
 	if (not inpkt) then return end
-	if (port ~= network.Ports.Stargate) and (port ~= network.Ports.General) then return end
+	if (port ~= Enum.Port.Stargate) and (port ~= Enum.Port.General) then return end
 	--print("Gate-related packet received "..port)
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
@@ -119,7 +120,7 @@ function networkListener(_, localNetworkCard, remoteAddress, port, distance, inp
 			Gate.disconnect()
 		end
 	elseif (packet.Header == "sendGDO") then
-		
+
 	end
 end
 
@@ -141,7 +142,7 @@ function gateEvent(tArgs)
 		end
 		lastGateState = newState
 	elseif (tArgs[1] == "sgMessageReceived") then
-		
+
 	end
 	lastGateEvent = tArgs[1]
 end
@@ -154,15 +155,3 @@ while true do
 		gateEvent(tEvent)
 	end
 end
-
-
-
-
-
-
-
-
-
-
-
-

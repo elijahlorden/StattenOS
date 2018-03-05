@@ -53,18 +53,18 @@ Shell.networkCommand = function(tArgs)
 	local devName = arg1[1]
 	local devCmd = arg1[2]
 	if (devName == "") or (devName == " ") or (devCmd == "") or (devCmd == " ") then return false end
-	local packet = {Header = "RunCommand", Receiver = devName, CommandStr = Shell.appendCmd(devCmd, tArgs)}
+	local packet = {Header = Enum.Header.RUNCOMMAND, Receiver = devName, CommandStr = Shell.appendCmd(devCmd, tArgs)}
 	Shell.sendNetworkCommand(packet)
 	return true
 end
 
 Shell.sendNetworkCommand = function(outpkt)
-	network.sendPacket(network.Ports.Command, outpkt, false)
+	network.sendPacket(Enum.Port.Command, outpkt, false)
 	-- Wait for response
 	for i=1,20 do
 		local event, localNetworkCard, remoteAddress, port, distance, inpkt = event.pull(0.5, "modem_message")
 		if (event) then
-			if (port) and ((port == network.Ports.CommandResponse) or (port == 0) or (port == network.Ports.General)) then
+			if (port) and ((port == Enum.Port.CommandResponse) or (port == 0) or (port == Enum.Port.General)) then
 				local packet = serialization.unserialize(inpkt)
 				local Receiver = tostring(packet.Receiver) or ""
 				local Header = tostring(packet.Header) or ""

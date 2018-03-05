@@ -1,0 +1,39 @@
+local Enum = {}
+
+Enum.Header = {
+    SHUTDOWN = "SHDN",
+    FETCHGATEREGISTRY = "FGR",
+    REGISTERGATE = "RGGT",
+    UNREGISTERGATE = "URGT",
+    GATEREGISTRYBROADCAST = "GTRB",
+    SERVERPING = "SVPG",
+    NOTIFICATION = "NOTF",
+    KEEPALIVE = "KEAL",
+    RUNCOMMAND = "RNCD",
+    FILETRANSFERDATA = "FTFD",
+    FILETRANSFERCOMPLETE = "FTFC",
+
+}
+
+Enum.Header.Gate = {
+  GATEDIALLINGOUT   = "GDO",
+  GATEDIALLINGIN    = "GDI",
+  GATEOPENING       = "GTO",
+  GATECLOSING       = "GTC",
+  GATECONNECTED     = "GCN",
+  DIALGATE          = "DG",
+  CLOSEGATE         = "CG",
+}
+
+Enum.Port = {}
+
+Enum.Port.General = 6000
+Enum.Port.Command = 5000
+Enum.Port.CommandResponse = 50001
+Enum.Port.FTP = 5002
+Enum.Port.Keepalive = 5003
+Enum.Port.Stargate = 5006
+Enum.Port.StargateResponse = 5007
+Enum.Port.Notifications = 5008
+
+return Enum

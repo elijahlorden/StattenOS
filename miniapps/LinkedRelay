@@ -73,7 +73,7 @@ while true do
 	if (port == 0) then
 		local desPkt = serialization.unserialize(inpkt)
 		if (not desPkt) then return end
-		local sendPort = network.Ports[desPkt.PortName] or network.Ports.General
+		local sendPort = Enum.Port[desPkt.PortName] or Enum.Port.General
 		component.modem.broadcast(sendPort, inpkt)
 		print("Received Linked Message, forwarding to network (Port "..sendPort..")")
 	else
@@ -81,6 +81,3 @@ while true do
 		print("Received network message on Port "..port..", forwarding to linked card")
 	end
 end
-
-
-

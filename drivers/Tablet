@@ -2,8 +2,8 @@ local Tablet = {}
 
 Tablet.init = function()
 	network.registerNetworkListener(Tablet.gateNetworkListener)
-	local fetchPkt = {Header = "FetchGateRegistry"}
-	network.sendPacket(network.Ports.Stargate, fetchPkt, false)
+	local fetchPkt = {Header = Enum.Header.FETCHGATEREGISTRY}
+	network.sendPacket(Enum.Port.Stargate, fetchPkt, false)
 	network.registerPingListener()
 end
 
@@ -30,8 +30,8 @@ Tablet.registerGateCommand = function(gateName, address, switch1)
 		Device.currentConfig.PersonalGateRegistry[gateName] = address
 		print("Personal GateRegistry updated")
 	else
-		local outPkt = {Header = "RegisterGate", GateName = gateName, GateAddress = address}
-		network.sendPacket(network.Ports.Stargate, outPkt, false)
+		local outPkt = {Header = Enum.Header.REGISTERGATE, GateName = gateName, GateAddress = address}
+		network.sendPacket(Enum.Port.Stargate, outPkt, false)
 		print("GateRegister packet sent")
 	end
 	Device.saveConfig()
@@ -45,8 +45,8 @@ Tablet.unregisterGateCommand = function(gateName, switch1)
 		Device.currentConfig.PersonalGateRegistry[gateName] = nil
 		print("Personal GateRegistry updated")
 	else
-		local outPkt = {Header = "UnregisterGate", GateName = gateName}
-		network.sendPacket(network.Ports.Stargate, outPkt, false)
+		local outPkt = {Header = Enum.header.UNREGISTERGATE, GateName = gateName}
+		network.sendPacket(Enum.Port.Stargate, outPkt, false)
 		print("GateUnregister packet sent")
 	end
 	Device.saveConfig()
@@ -80,8 +80,8 @@ Tablet.listPersonalGates = function()
 end
 
 Tablet.fetchGateRegistryCommand = function()
-	local outPkt = {Header = "FetchGateRegistry"}
-	network.sendPacket(network.Ports.Stargate, outPkt, false)
+	local outPkt = {Header = Enum.Header.FETCHGATEREGISTRY}
+	network.sendPacket(Enum.Port.Stargate, outPkt, false)
 	print("GateRegistryFetch packet sent")
 	return true
 end
@@ -98,14 +98,14 @@ Tablet.dialGateCommand = function(dialAddress, switch1)
 		sendAddress = Device.currentConfig.PersonalGateRegistry[dialAddress]
 	end
 	print("Sending DialOut packet...")
-	local packet = {Header = "dialGate", DialAddress = sendAddress}
-	network.sendPacketWithoutLink(network.Ports.Stargate, packet, true)
+	local packet = {Header = Enum.Header.Gate.DIALGATE, DialAddress = sendAddress}
+	network.sendPacketWithoutLink(Enum.Port.Stargate, packet, true)
 	return true
 end
 
 Tablet.closeGateCommand = function()
-	local packet = {Header = "closeGate"}
-	network.sendPacketWithoutLink(network.Ports.Stargate, packet, true)
+	local packet = {Header = Enum.Header.Gate.CLOSEGATE}
+	network.sendPacketWithoutLink(Enum.Port.Stargate, packet, true)
 	print("Sending Termination packet...")
 	return true
 end
@@ -114,7 +114,7 @@ local prevGatePacket = {Header = "", GateAddress = ""}
 
 Tablet.gateNetworkListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
 	if (not port) then return end
-	if (port ~= network.Ports.StargateResponse) and (port ~= 0) then return end
+	if (port ~= Enum.Port.StargateResponse) and (port ~= 0) then return end
 	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
@@ -151,7 +151,7 @@ Tablet.gateNetworkListener = function(_, localNetworkCard, remoteAddress, port, 
 end
 
 Tablet.setup = function()
-	
+
 end
 
 Tablet.sendKeepalive = function()
@@ -159,7 +159,7 @@ Tablet.sendKeepalive = function()
 end
 
 Tablet.powerOff = function()
-	
+
 end
 
 
