@@ -2,7 +2,6 @@ local Server = {}
 
 Server.deviceList = {[network.acceptedServerName] = {Name = network.acceptedServerName, Type = "Server", Address = component.modem.address, Pinged = true}} -- Name = {Name = name, Type = driverName, ConnectionTime = 0, Address = address}
 
-
 Server.lastPing = 0
 Server.pingTimeout = 10
 
@@ -21,12 +20,12 @@ Server.load = function(config)
 end
 
 Server.setup = function()
-	
+
 end
 
 
 Server.powerOff = function()
-	
+
 end
 
 Server.registerCommands = function()
@@ -85,14 +84,9 @@ Server.listDeviceCmd = function(typeFilter)
 	return true, response
 end
 
-Server.networkListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
-	if (not port) then return end
-	if (port ~= 0) and (port ~= network.Ports.Keepalive) and (port ~= network.Ports.Stargate) and (port ~= network.Ports.General) then return end
-	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
-	local packet = serialization.unserialize(inpkt)
-	if (not packet) then return end
-	if (not packet.Header) or (not packet.Sender) or (not packet.SenderType) then return end
-	if (packet.Header ~= "Shutdown") then
+Server.networkListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
+	if (port ~= 0) and (port ~= Enum.Port.Keepalive) and (port ~= Enum.Port.Stargate) and (port ~= Enum.Port.General) then return end
+	if (packet.Header ~= Enum.Header.SHUTDOWN) then
 		if (Server.deviceList[packet.Sender] ~= nil) then
 			Server.deviceList[packet.Sender].Pinged = true
 			Server.deviceList[packet.Sender].Address = remoteAddress
@@ -103,25 +97,25 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 			computer.beep(Server.connectBeep)
 		end
 	end
-	
-	if (packet.Header == "Shutdown") then
+
+	if (packet.Header == Enum.Header.SHUTDOWN) then
 		if (Server.deviceList[packet.Sender] ~= nil) then
 			Server.deviceList[packet.Sender] = nil
 			Shell.print(packet.Sender.." Disconnected (Reason: Shutting Down)")
 			computer.beep(Server.disconnectBeep)
 		end
-	elseif (packet.Header == "FetchGateRegistry") then
+	elseif (packet.Header == Enum.Header.FETCHGATEREGISTRY) then
 		if (not packet.Sender) then return end
 		Shell.print("GateRegistry Fetch Request")
 		local outPkt = {Header = "GateRegistryFetched", Registry = Device.currentConfig.GateRegistry, Receiver = packet.Sender}
-		network.sendPacket(network.Ports.StargateResponse, outPkt, false)
-	elseif (packet.Header == "RegisterGate") then
+		network.sendPacket(Enum.Port.StargateResponse, outPkt, false)
+	elseif (packet.Header == Enum.Header.REGISTERGATE) then
 		if (not packet.GateName) or (not packet.GateAddress) then return end
 		Device.currentConfig.GateRegistry[packet.GateName] = packet.GateAddress
 		Shell.print("Gate "..packet.GateName.." Registered to address "..packet.GateAddress)
 		Server.sendGateRegistryBroadcast()
 		Device.saveConfig()
-	elseif (packet.Header == "UnregisterGate") then
+	elseif (packet.Header == Enum.Header.UNREGISTERGATE) then
 		if (not packet.GateName) then return end
 		Device.currentConfig.GateRegistry[packet.GateName] = nil
 		Shell.print("Gate "..packet.GateName.." Unregistered")
@@ -131,19 +125,19 @@ Server.networkListener = function(_, localNetworkCard, remoteAddress, port, dist
 end
 
 Server.sendGateRegistryBroadcast = function()
-	local outPkt = {Header = "GateRegistryBroadcast", Registry = Device.currentConfig.GateRegistry}
-	network.sendPacket(network.Ports.StargateResponse, outPkt, false)
+	local outPkt = {Header = Enum.Header.GATEREGISTRYBROADCAST, Registry = Device.currentConfig.GateRegistry}
+	network.sendPacket(Enum.Port.StargateResponse, outPkt, false)
 	Shell.print("Broadcasted GateRegistry update")
 end
 
 Server.pingDevices = function()
-	local outPkt = {Header = "ServerPing", Registry = Device.currentConfig.GateRegistry}
-	network.sendPacket(network.Ports.Keepalive, outPkt, false)
+	local outPkt = {Header = Enum.Header.SERVERPING, Registry = Device.currentConfig.GateRegistry}
+	network.sendPacket(Enum.Port.Keepalive, outPkt, false)
 	for i,p in pairs(Server.deviceList) do
 		p.Pinged = false
 	end
 	--Shell.print("Pinging network...")
-	
+
 	event.timer(Server.pingTimeout, function()
 		for i,p in pairs(Server.deviceList) do
 			if (not p.Pinged) and (p.Name ~= network.acceptedServerName) then

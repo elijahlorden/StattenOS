@@ -1,5 +1,4 @@
 local Device = {}
-
 Device.driverList = {
 	Default = {Name = "Default", desc = "Default, no special function"};
 	Server = {Name = "Server", desc = "Central control server for networked devices"};
@@ -45,17 +44,8 @@ Device.saveConfig = function()
 	return true
 end
 
-Device.commandListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
-	if (not port) then return end
-	if (port ~= 0) and (port ~= network.Ports.Command) and (port ~= network.Ports.General) then return end
-	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
-	local packet = serialization.unserialize(inpkt)
-	if (not packet) then return end
-	if (not packet.Header) then return end
-	if (not packet.Receiver) or (not packet.Sender) then return end
-	packet.Receiver = tostring(packet.Receiver) or ""
-	packet.Sender = tostring(packet.Sender) or ""
-	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
+Device.commandListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
+	if (port ~= 0) and (port ~= Enum.Port.Command) and (port ~= Enum.Port.General) then return end
 	if (packet.Header == "RunCommand") then
 		local cmd = tostring(packet.CommandStr) or ""
 		Shell.print(packet.Sender..Shell.prompt..packet.CommandStr)
@@ -85,11 +75,11 @@ end
 Device.commandResponse = function(deviceName, resTbl)
 	local response
 	if (not resTbl) then response = {{Type = "print", text = "Command executed"}} else response = resTbl.getResponse() end
-	network.sendPacket(network.Ports.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = response}, false)
+	network.sendPacket(Enum.Port.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = response}, false)
 end
 
 Device.commandFailResponse = function(deviceName)
-	network.sendPacket(network.Ports.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = {{Type = "print", text = "Internal Error"}}}, false)
+	network.sendPacket(Enum.Port.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = {{Type = "print", text = "Internal Error"}}}, false)
 end
 
 Device.updateListener = function(_, FileName, FilePath) -- FTP event Listener

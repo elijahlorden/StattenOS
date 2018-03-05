@@ -1,15 +1,5 @@
 local network = {}
 
-network.Ports = {}
-network.Ports.General = 6000
-network.Ports.Command = 5000
-network.Ports.CommandResponse = 50001
-network.Ports.FTP = 5002
-network.Ports.Keepalive = 5003
-network.Ports.Stargate = 5006
-network.Ports.StargateResponse = 5007
-network.Ports.Notifications = 5008
-
 network.acceptedServerName = "Server"
 
 network.getModem = function()
@@ -44,7 +34,7 @@ network.sendPacketWithoutLink = function(port, packet, wireless)
 end
 
 network.getPortName = function(portNum)
-	for i,p in pairs(network.Ports) do
+	for i,p in pairs(Enum.Port) do
 		if (p == portNum) then return i end
 	end
 end
@@ -54,6 +44,7 @@ network.formatPacket = function(inpkt, port)
 		inpkt.SenderType = Device.currentConfig.Driver
 		inpkt.Sender = Device.currentConfig.Name
 	end
+	if (not inpkt.Receiver) then inpkt.Receiver = "All" end
 	inpkt.PortName = network.getPortName(port)
 	local packetStr = serialization.serialize(inpkt)
 	return packetStr
@@ -73,18 +64,18 @@ network.closePort = function(port)
 end
 
 network.registerNetworkListener = function(func, name)
-	event.listen("modem_message", func)
+	event.listen("WrappedNetworkSignal", func)
 	if (name) then print("Registered NetworkListener "..name) end
 end
 
 network.sendKeepalivePacket = function()
-	local packet = {Header = "Keepalive"}
-	network.sendPacket(network.Ports.Keepalive, packet, false)
+	local packet = {Header = Enum.Header.KEEPALIVE, Receiver = network.acceptedServerName}
+	network.sendPacket(Enum.Port.Keepalive, packet, false)
 end
 
 network.sendShutdownPacket = function()
-	local packet = {Header = "Shutdown"}
-	network.sendPacket(network.Ports.Keepalive, packet, false)
+	local packet = {Header = Enum.Header.SHUTDOWN}
+	network.sendPacket(Enum.Port.Keepalive, packet, false)
 end
 
 network.ftp = {}
@@ -93,13 +84,13 @@ network.notifications = {}
 network.maxPacketSize = 7000
 
 network.ftp.sendPacket = function(fileName, receiver, chunk)
-	local packet = {Header = "FileTransferData", Receiver = receiver, FileName = fileName, Chunk = chunk}
-	return network.sendPacket(network.Ports.FTP, packet, false)
+	local packet = {Header = Enum.Header.FILETRANSFERDATA, Receiver = receiver, FileName = fileName, Chunk = chunk}
+	return network.sendPacket(Enum.Port.FTP, packet, false)
 end
 
 network.ftp.sendFinished = function(fileName, receiver, bytes)
-	local packet = {Header = "FileTransferComplete", Receiver = receiver, FileName = fileName, Bytes = bytes}
-	return network.sendPacket(network.Ports.FTP, packet, false)
+	local packet = {Header = Enum.Header.FILETRANSFERCOMPLETE, Receiver = receiver, FileName = fileName, Bytes = bytes}
+	return network.sendPacket(Enum.Port.FTP, packet, false)
 end
 
 network.ftp.readByesFromFile = function(driveProxy, handle, bytesToRead)
@@ -144,23 +135,15 @@ network.ftp.sendFile = function(driveProxy, path, sendName, receiverName)
 	return true
 end
 
-network.ftp.listener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+network.ftp.listener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
 	if (not port) then return end
-	if (port ~= 0) and (port ~= network.Ports.FTP) and (port ~= network.Ports.General) then return end
-	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
-	local packet = serialization.unserialize(inpkt)
-	if (not packet) then return end
-	if (not packet.Header) then return end
-	if (not packet.Receiver) or (not packet.Sender) then return end
-	packet.Receiver = tostring(packet.Receiver) or ""
-	packet.Sender = tostring(packet.Sender) or ""
-	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
-	if (packet.Header == "FileTransferData") then
+	if (port ~= 0) and (port ~= Enum.Port.FTP) and (port ~= Enum.Port.General) then return end
+	if (packet.Header == Enum.Header.FILETRANSFERDATA) then
 		if (not packet.FileName) or (not packet.Chunk) then return end
 		Shell.print("Received "..packet.Chunk:len().."b for file "..packet.FileName)
 		local tmpProxy = component.proxy(computer.getBootAddress())
 		local handle, reason
-		if (tmpProxy.exists("/tmp/"..packet.FileName.."_Partial")) then 
+		if (tmpProxy.exists("/tmp/"..packet.FileName.."_Partial")) then
 			handle, reason = tmpProxy.open("/tmp/"..packet.FileName.."_Partial", "a")
 		else
 			handle, reason = tmpProxy.open("/tmp/"..packet.FileName.."_Partial", "w")
@@ -169,7 +152,7 @@ network.ftp.listener = function(_, localNetworkCard, remoteAddress, port, distan
 		tmpProxy.write(handle, packet.Chunk)
 		tmpProxy.close(file)
 		OS.sleep(0.1)
-	elseif (packet.Header == "FileTransferComplete") then
+	elseif (packet.Header == Enum.Header.FILETRANSFERCOMPLETE) then
 		if (not packet.FileName) or (not packet.Bytes) then return end
 		local tmpProxy = component.proxy(computer.getBootAddress())
 		if (tmpProxy.exists("/tmp/"..packet.FileName.."_Partial")) then
@@ -192,33 +175,24 @@ network.ftp.registerFtpListener = function(func)
 end
 
 network.notifications.broadcast = function(message)
-	local packet = {Header = "Notification", Message = message}
-	network.sendPacket(network.Ports.Notifications, packet, false)
+	local packet = {Header = Enum.Header.NOTIFICATION, Message = message}
+	network.sendPacket(Enum.Port.Notifications, packet, false)
 end
 
-network.notifications.listener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
-	if (not port) then return end
-	if (port ~= 0) and (port ~= network.Ports.Notifications) and (port ~= network.Ports.General) then return end
-	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
-	local packet = serialization.unserialize(inpkt)
+network.notifications.listener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
+	if (port ~= 0) and (port ~= Enum.Port.Notifications) and (port ~= Enum.Port.General) then return end
 	if (not packet) then return end
-	if (not packet.Header) or (not packet.Sender)  then return end
-	if (packet.Header ~= "Notification") then return end
+	if (packet.Header ~= Enum.Header.NOTIFICATION) then return end
 	if (not packet.Message) then return end
 	computer.beep(2000)
 	Shell.print(packet.Message)
 	computer.beep(2000)
 end
 
-network.pingListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
-	if (not port) then return end
-	if (port ~= 0) and (port ~= network.Ports.Keepalive) and (port ~= network.Ports.General) then return end
-	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
-	local packet = serialization.unserialize(inpkt)
-	if (not packet) then return end
-	if (not packet.Header) or (not packet.Sender)  then return end
-	if (packet.Header ~= "ServerPing") then return end
-	--Shell.print("Responding to Server Ping")
+network.pingListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
+	if (port ~= 0) and (port ~= Enum.Port.Keepalive) and (port ~= Enum.Port.General) then return end
+	if (packet.Header ~= Enum.Header.SERVERPING) then return end
+	Shell.print("Responding to Server Ping")
 	network.sendKeepalivePacket()
 end
 
@@ -226,7 +200,16 @@ network.registerPingListener = function()
 	network.registerNetworkListener(network.pingListener, "PingListener")
 end
 
-
+network.wrappedNetworkSignalGenerator = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	if (not port) then return end
+	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	local packet = serialization.unserialize(inpkt)
+	if (not packet) then return end
+	if (not packet.Header) or (not packet.Sender) or (not packet.Receiver) then return end
+	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
+	print("Pushed")
+	computer.pushSignal("WrappedNetworkSignal", localNetworkCard, remoteAddress, port, distance, packet)
+end
 
 
 
@@ -237,13 +220,14 @@ end
 
 
 network.init = function()
+	event.listen("modem_message", network.wrappedNetworkSignalGenerator)
 	network.registerNetworkListener(network.ftp.listener)
 	network.registerNetworkListener(network.notifications.listener)
 	network.portInit()
 end
 
 network.portInit = function()
-	for i,p in pairs(network.Ports) do
+	for i,p in pairs(Enum.Port) do
 		local success = network.openPort(p)
 		if (success) then
 			print("Opened "..i.." Port ("..p..")")
