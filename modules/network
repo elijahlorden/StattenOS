@@ -207,7 +207,6 @@ network.wrappedNetworkSignalGenerator = function(_, localNetworkCard, remoteAddr
 	if (not packet) then return end
 	if (not packet.Header) or (not packet.Sender) or (not packet.Receiver) then return end
 	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
-	print("Pushed")
 	computer.pushSignal("WrappedNetworkSignal", localNetworkCard, remoteAddress, port, distance, packet)
 end
 
