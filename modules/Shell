@@ -60,8 +60,8 @@ end
 
 Shell.sendNetworkCommand = function(outpkt)
 	network.sendPacket(Enum.Port.Command, outpkt, false)
-	-- Wait for response
-	for i=1,20 do
+	-- Rework network commands to be concurrent
+	--[[for i=1,20 do
 		local event, localNetworkCard, remoteAddress, port, distance, inpkt = event.pull(0.5, "modem_message")
 		if (event) then
 			if (port) and ((port == Enum.Port.CommandResponse) or (port == 0) or (port == Enum.Port.General)) then
@@ -84,7 +84,11 @@ Shell.sendNetworkCommand = function(outpkt)
 			end
 		end
 	end
-	print("No response received.")
+	print("No response received.")--]]
+end
+
+Shell.networkCommandResponseListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
+	
 end
 
 Shell.handleResponse = function(data)

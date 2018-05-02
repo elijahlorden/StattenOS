@@ -202,7 +202,7 @@ end
 
 network.wrappedNetworkSignalGenerator = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
 	if (not port) then return end
-	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
+	if (not inpkt) or (type(inpkt) ~= "string") then return end
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
 	if (not packet.Header) or (not packet.Sender) or (not packet.Receiver) then return end
