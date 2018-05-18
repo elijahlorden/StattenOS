@@ -136,7 +136,6 @@ network.ftp.sendFile = function(driveProxy, path, sendName, receiverName)
 end
 
 network.ftp.listener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
-	if (not port) then return end
 	if (port ~= 0) and (port ~= Enum.Port.FTP) and (port ~= Enum.Port.General) then return end
 	if (packet.Header == Enum.Header.FILETRANSFERDATA) then
 		if (not packet.FileName) or (not packet.Chunk) then return end

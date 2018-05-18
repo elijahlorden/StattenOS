@@ -47,7 +47,7 @@ end
 
 Device.commandListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
 	if (port ~= 0) and (port ~= Enum.Port.Command) and (port ~= Enum.Port.General) then return end
-	if (packet.Header == "RunCommand") then
+	if (packet.Header == Enum.Header.RUNCOMMAND) then
 		local cmd = tostring(packet.CommandStr) or ""
 		Shell.print(packet.Sender..Shell.prompt..packet.CommandStr)
 		OS.sleep(0.1)

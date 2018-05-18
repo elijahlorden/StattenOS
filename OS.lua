@@ -121,12 +121,12 @@ OS.runfile = runfile
 
 loadModules = function(path)
 	print("Loading modules in "..path)
-	local files = fs.list(path)
-	for f in files do
+	local files = fs.list(path) -- get list of files in the directory 'path'
+	for f in files do -- use a FOR loop to iterate over the list of files
 		print("Loading module "..path..f)
-		retModule = dofile(path..f)
-		_G[f] = retModule
-		OS.modules[f] = retModule
+		retModule = dofile(path..f) -- get the module table that results from executing the file
+		_G[f] = retModule -- assign the table to the global namespace
+		OS.modules[f] = retModule -- add the module to OS.modules so it can be referenced
 	end
 end
 
