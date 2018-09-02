@@ -163,6 +163,7 @@ end
 -- @param startPos The starting position for the scan.
 -- @return table, int The scanned array as a table, and the position of the next character to scan.
 function decode_scanArray(s,startPos)
+	OS.sleep(0.1)
   local array = {}	-- The return value
   local stringLen = string.len(s)
   assert(string.sub(s,startPos,startPos)=='[','decode_scanArray called but array does not start at position ' .. startPos .. ' in string:\n'..s )
@@ -189,6 +190,7 @@ end
 -- @param string s The JSON string to scan.
 -- @param int startPos The starting position of the comment
 function decode_scanComment(s, startPos)
+	OS.sleep(0.1)
   assert( string.sub(s,startPos,startPos+1)=='/*', "decode_scanComment called but comment does not start at position " .. startPos)
   local endPos = string.find(s,'*/',startPos+2)
   assert(endPos~=nil, "Unterminated comment in string at " .. startPos)
@@ -202,6 +204,7 @@ end
 -- @return object, int The object (true, false or nil) and the position at which the next character should be 
 -- scanned.
 function decode_scanConstant(s, startPos)
+	OS.sleep(0.1)
   local consts = { ["true"] = true, ["false"] = false, ["null"] = nil }
   local constNames = {"true","false","null"}
 
@@ -243,6 +246,7 @@ end
 -- @param startPos The starting position of the scan.
 -- @return table, int The scanned object as a table and the position of the next character to scan.
 function decode_scanObject(s,startPos)
+OS.sleep(0.1)
   local object = {}
   local stringLen = string.len(s)
   local key, value
@@ -297,6 +301,7 @@ end})
 -- @param startPos The starting position of the scan.
 -- @return string, int The extracted string as a Lua string, and the next character to parse.
 function decode_scanString(s,startPos)
+	OS.sleep(0.1)
   assert(startPos, 'decode_scanString(..) called without start position')
   local startChar = string.sub(s,startPos,startPos)
   -- START SoniEx2

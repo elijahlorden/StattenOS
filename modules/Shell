@@ -22,7 +22,7 @@ Shell.step = function()
 			local p = Shell.ShellBacklog[1]
 			if (p.Type == "print") then
 				print(p.Text)
-			elseif (p.Type = "printPaged") then
+			elseif (p.Type == "printPaged") then
 				printPaged(p.Text)
 			end
 			table.remove(Shell.ShellBacklog, 1)
