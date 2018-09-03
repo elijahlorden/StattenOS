@@ -137,7 +137,7 @@ Packager.getFileString = function(path, proxy)
 	end
 	local buffer = ""
 	repeat
-	local data, reason = proxy.read(handle)
+	local data, reason = proxy.read(handle, math.huge)
 	if (not data) and (reason) then
 		print("Unable to read file "..path.."("..reason..")")
 		return
@@ -287,7 +287,7 @@ Packager.installUpdatePackage = function(packagePath)
 	local inStr = Packager.getFileString(packagePath)
 	if (not inStr) then print("Update failed") return false end
 	local packagedOS = JSON.decode(inStr)
-	if (not packagedOS) then print("Update failed") return false end
+	if (not packagedOS) or (not packagedOS.Directories) then print("Update failed") return false end
 	print("Wiping drive")
 	Packager.wipeDriveForOSInstall(proxy, "/")
 	for i,p in pairs(packagedOS.Directories) do
@@ -308,6 +308,40 @@ Packager.installUpdatePackage = function(packagePath)
 	return true
 end
 
+Packager.installUpdateFromDrive = function(packagePath)
+	if (not packagePath) or (type(packagePath) ~= "string") or (#packagePath < 4) then return false end
+	local proxy = fs.drive.letterToProxy(packagePath:sub(1,1))
+	local aProxy = fs.drive.letterToProxy("A")
+	if (not proxy) then return false end
+	if (packagePath:sub(2,2) == ":") then --A:/path
+		packagePath = packagePath:sub(3)
+	else --A/path
+		packagePath = packagePath:sub(2)
+	end
+	----- get package -----
+	local inStr = Packager.getFileString(packagePath, proxy)
+	if (not inStr) then return false end
+	local packagedOS = JSON.decode(inStr)
+	if (not packagedOS) or (not packagedOS.Directories) then return false end
+	print("Wiping drive")
+	Packager.wipeDriveForOSInstall(aProxy, "/")
+	for i,p in pairs(packagedOS.Directories) do
+		aProxy.makeDirectory(p)
+	end
+	OS.sleep(0.5)
+	for i,p in pairs(packagedOS) do
+		if (i ~= "Directories") then
+			for fn,f in pairs(p) do
+				print("Installing "..fn)
+				if (type(f):lower() == "string") then
+					Packager.writeFile(aProxy, fn, f)
+					OS.sleep(0.1)
+				end
+			end
+		end
+	end
+	return true
+end
 
 
 

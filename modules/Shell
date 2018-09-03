@@ -65,9 +65,29 @@ Shell.networkCommand = function(tArgs)
 	return true
 end
 
-Shell.sendNetworkCommand = function(outpkt)
-	-- Rework network commands to be concurrent
-	--[[for i=1,20 do
+-- TODO:
+-- Register sent network commands in a buffer
+-- Use buffer to handle timeouts
+-- Use a UUID for command IDs
+
+-- Rework responses to be concurrent
+-- Responses should be created by the command disbatcher and not the command itself
+-- Responses should contain the sender's name
+-- The sender should receiver a confirmation from the receiver that the command is being processed, otherwise it will time out after 5 seconds
+-- After receiving the confirmation, the sender will reset the timeout to 20 seconds
+-- A keepalive response may be sent to the sender to reset the timeout to a specific amount
+-- Keepalive responses will be ignored by the sender if the command has already timed out
+-- Responses should accumulate data and only send when flushed
+-- Responses should keep track of time between messages for use in presentation to sender
+-- Sender should delay printing of response messages based on time since last message
+-- Responses should be closed with either a 'completed' call or a 'failed' message
+-- Failure to provide either a success or failure state will result in a timeout
+-- Command timeouts are purely for the user's benefit, and will not prevent the receiver from continuing to execute the command
+-- A timeout means that the command is removed from the senders buffer, and the user can consider that command to have failed
+-- A timeout does not prevent the receiver from continuing to execute the command and send responses if the command did not actually fail
+
+--[[Shell.sendNetworkCommand = function(outpkt)
+	for i=1,20 do
 		local event, localNetworkCard, remoteAddress, port, distance, inpkt = event.pull(0.5, "modem_message")
 		if (event) then
 			if (port) and ((port == Enum.Port.CommandResponse) or (port == 0) or (port == Enum.Port.General)) then
@@ -90,12 +110,13 @@ Shell.sendNetworkCommand = function(outpkt)
 			end
 		end
 	end
-	print("No response received.")--]]
-end
+	print("No response received.")
+end--]]
 
 Shell.networkCommandResponseListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
 	if (port ~= 0) and (port ~= Enum.Port.CommandResponse) and (port ~= Enum.Port.General) then return end
 	if (packer.Header ~= Enum.Header.COMMANDRESPONSE) then return end
+	
 end
 
 Shell.handleResponse = function(data)

@@ -210,13 +210,6 @@ network.wrappedNetworkSignalGenerator = function(_, localNetworkCard, remoteAddr
 end
 
 
-
-
-
-
-
-
-
 network.init = function()
 	event.listen("modem_message", network.wrappedNetworkSignalGenerator)
 	network.registerNetworkListener(network.ftp.listener)

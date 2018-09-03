@@ -110,7 +110,7 @@ local rebootCommand = function()
 	if (Device.updatePackage ~= nil) then
 		print("Update package present, installation process beginning")
 		print("Do NOT power off the machine during the update process.")
-		print("If the device is powered off during the update process, it will no longer function correctly.")
+		print("If the machine is powered off during the update process, it will no longer function correctly.")
 		print("Commencing update...")
 		OS.sleep(1)
 		Packager.installUpdatePackage(Device.updatePackage)
@@ -172,11 +172,13 @@ local createInstallerFunc = function(driveLetter) -- CREATE INSTALLER FILES
 	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
 	local proxy = fs.drive.letterToProxy(driveLetter)
 	if (not proxy) then print("Drive does not exist") response.print("Drive does not exist") return true, response end
-	print("creating installer files on drive "..driveLetter)
-	response.print("creating installer files on drive "..driveLetter)
+	print("Creating installer files on drive "..driveLetter)
+	response.print("Creating installer files on drive "..driveLetter)
 	local insProg, insData = Packager.assembleInstallFiles()
 	Packager.writeFile(proxy, "/Installer", insProg)
 	Packager.writeFile(proxy, "/InstallData", insData)
+	response.print("Installer files written")
+	print("Installer files written")
 	return true, response
 end
 
@@ -218,6 +220,24 @@ local listComponentMethodsFunc = function(uuid) -- Print list of component metho
 end
 
 Commands.registerCommand("listComponentMethods", listComponentMethodsFunc, "List methods for component", "UUID (can be partial)")
+
+local updateFromFileFunc = function(path) -- Update OS from packaged installData file
+	local response = newResponse()
+	if (not path) then return false end
+	local proxy = fs.drive.letterToProxy(path:sub(1,1):upper() or "")
+	if (not proxy) then print("Drive does not exist") response.print("Drive does not exist") return true, response end
+	local success = Packager.installUpdateFromDrive(path)
+	local msg = success and "Update completed" or "Update failed"
+	if (success) then Device.updatePackage = nil end
+	print(msg)
+	response.print(msg)
+	return true, response
+end
+
+Commands.registerCommand("updateFromFile", updateFromFileFunc, "Update local installation from file", "Path (absolute)")
+
+
+
 
 
 
