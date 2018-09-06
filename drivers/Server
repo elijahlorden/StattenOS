@@ -34,54 +34,48 @@ Server.registerCommands = function()
 	Commands.registerCommand("ping", Server.pingCmd , "Ping network for active devices", "")
 end
 
-Server.pingCmd = function()
-	local response = newResponse()
-	response.print("Pinging network...")
-	Shell.print("Pinging network")
+Server.pingCmd = function(response)
+	response:print("Pinging network...")
 	Server.pingDevices()
 	return true, response
 end
 
-Server.updateCmd = function(deviceName)
-	local response = newResponse()
+Server.updateCmd = function(response, deviceName)
 	local cmdReceiver = deviceName or "All"
-	print("Sending update packages to "..cmdReceiver)
-	response.print("Sending update packages to "..cmdReceiver)
+	response:print("Sending update packages to "..cmdReceiver)
+	response:flush()
 	local packagedOS = Packager.packageIntoTable()
-	print("Serializing packaged OS")
-	response.print("Serializing packaged OS")
+	response:print("Serializing packaged OS")
+	response:flush()
 	OS.sleep(0.1)
 	local serializedOS = JSON.encode(packagedOS)
-	print("Writing packaged OS to temporary file")
-	response.print("Writing packaged OS to temporary file")
+	response:print("Writing packaged OS to temporary file")
 	local tmpProxy = component.proxy(computer.getBootAddress())
 	if (tmpProxy.exists("/tmp/out_UpdatePackage")) then tmpProxy.remove("/tmp/out_UpdatePackage") end
 	local handle, reason = tmpProxy.open("/tmp/out_UpdatePackage", "w")
-	if (not handle) then print("Error opening file ("..reason..")") return end
-	print(serializedOS:len().." Characters")
+	if (not handle) then response:print("Error opening file ("..reason..")") return end
 	tmpProxy.write(handle, serializedOS)
 	tmpProxy.close(handle)
-	print("Sending file via FTP")
-	print(tmpProxy.size("/tmp/out_UpdatePackage").."b")
-	response.print("Sending file via FTP")
+	response:print("Sending file via FTP")
+	response:print(tmpProxy.size("/tmp/out_UpdatePackage").."b")
+	response:flush()
 	network.ftp.sendFile(tmpProxy, "/tmp/out_UpdatePackage", "UpdatePackage", cmdReceiver)
-	print("Update distributed")
-	response.print("Update distributed")
-	return true, response
+	response:print("Update distributed")
+	return true
 end
 
-Server.listDeviceCmd = function(typeFilter)
+Server.listDeviceCmd = function(response, typeFilter)
 	local filter = typeFilter or ""
-	local response = newResponse()
 	local str = ""
+	response:print("Format: &#fFFA500&#{DeviceName : DeviceType}&#fFFFFFF&#")
 	for i,p in pairs(Server.deviceList) do
 		if (string.find(p.Type, filter)) then
-			str = str..p.Name.." "..p.Type.." "..p.Address.."\n"
+			str = str.."{"..p.Name.." : "..p.Type.."} "
 		end
 	end
-	printPaged(str)
-	response.printPaged(str)
-	return true, response
+	response:print("&#fFFA500&#"..str.."&#fFFFFFF&#")
+	response:flush()
+	return true
 end
 
 Server.networkListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)

@@ -4,12 +4,29 @@ OS.Version = "0.0.1"
 OS.modules = {}
 OS.allowedRootFiles = {"drivers/", "miniapps/", "modules/", "tmp/", "config", "CoreLibs.lua", "init.lua", "Keyboard.lua", "OS.lua"}
 
+OS.chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+
 function OS.sleep(timeout)
 	checkArg(1, timeout, "number", "nil")
 	local deadline = computer.uptime() + (timeout or 0)
 	repeat
 		event.pull(deadline - computer.uptime())
 	until computer.uptime() >= deadline
+end
+
+function OS.uuid()
+	math.randomseed(computer.uptime())
+	local s = ""
+	for i=1,8 do local n = math.random(1,OS.chars:len()) s = s..(OS.chars:sub(n,n)) end
+	s = s.."-"
+	for i=1,4 do local n = math.random(1,OS.chars:len()) s = s..(OS.chars:sub(n,n)) end
+	s = s.."-"
+	for i=1,4 do local n = math.random(1,OS.chars:len()) s = s..(OS.chars:sub(n,n)) end
+	s = s.."-"
+	for i=1,4 do local n = math.random(1,OS.chars:len()) s = s..(OS.chars:sub(n,n)) end
+	s = s.."-"
+	for i=1,11 do local n = math.random(1,OS.chars:len()) s = s..(OS.chars:sub(n,n)) end
+	return s
 end
 
 function loadfile(file, mode, env)
@@ -94,16 +111,63 @@ local function runfile(file, ...)
 	end
 end
 
-function newResponse()
+function newResponse(cPacket)
 	local tbl = {}
+	if (cPacket) then
+		tbl = { sender = cPacket.Sender, id = cPacket.id}
+	end
 	tbl.contents = {}
-	tbl.print = function(text)
-		table.insert(tbl.contents, {Type = "print", text = text})
+	tbl.done = false
+	tbl.print = function(this, text)
+		table.insert(this.contents, {Type = "print", text = text})
+		if (this.sender) then
+			Shell.print(text)
+		else
+			print(text)
+		end
 	end
-	tbl.printPaged = function(text)
-		table.insert(tbl.contents, {Type = "printPaged", text = text})
+	tbl.printPaged = function(this, text)
+		table.insert(this.contents, {Type = "printPaged", text = text})
+		if (this.sender) then
+			Shell.printPaged(text)
+		else
+			printPaged(text)
+		end
 	end
-	tbl.getResponse = function() return tbl.contents end
+	tbl.sendAck = function(this)
+		if (not this.sender) then return end
+		local packet = {Header = Enum.Header.COMMANDRESPONSE, Receiver = this.sender, id = this.id, resType = Enum.ResType.ACK}
+		network.sendPacket(Enum.Port.CommandResponse, packet, false)
+	end
+	tbl.flush = function(this)
+		if (not this.sender) or (#this.contents < 1) then return end
+		local packet = {Header = Enum.Header.COMMANDRESPONSE, Receiver = this.sender, id = this.id, resType = Enum.ResType.FLUSH, flushData = this.contents}
+		network.sendPacket(Enum.Port.CommandResponse, packet, false)
+		this.contents = {}
+	end
+	tbl.sendSuccess = function(this)
+		if (not this.sender) or (this.done) then return end
+		this.done = true
+		local packet = {Header = Enum.Header.COMMANDRESPONSE, Receiver = this.sender, id = this.id, resType = Enum.ResType.SUCCESS}
+		network.sendPacket(Enum.Port.CommandResponse, packet, false)
+	end
+	tbl.sendBusy = function(this)
+		if (not this.sender) or (this.done) then return end
+		this.done = true
+		local packet = {Header = Enum.Header.COMMANDRESPONSE, Receiver = this.sender, id = this.id, resType = Enum.ResType.BUSY}
+		network.sendPacket(Enum.Port.CommandResponse, packet, false)
+	end
+	tbl.sendFailure = function(this)
+		if (not this.sender) or (this.done) then return end
+		this.done = true
+		local packet = {Header = Enum.Header.COMMANDRESPONSE, Receiver = this.sender, id = this.id, resType = Enum.ResType.FAILURE}
+		network.sendPacket(Enum.Port.CommandResponse, packet, false)
+	end
+	tbl.sendKeepalive = function(this, t)
+		if (not this.sender) then return end
+		local packet = {Header = Enum.Header.COMMANDRESPONSE, Receiver = this.sender, id = this.id, resType = Enum.ResType.KEEPALIVE, keepTime = t}
+		network.sendPacket(Enum.Port.CommandResponse, packet, false)
+	end
 	return tbl
 end
 
@@ -115,6 +179,10 @@ function mapToKeyPair(tbl)
 		n = n + 1
 	end
 	return nt
+end
+
+formatLoadingHeader = function(str)
+	return "&#f32CD32&#== &#fADD8E6&#"..str.."&#f32CD32&# ==&#fFFFFFF&#"
 end
 
 OS.runfile = runfile
@@ -137,7 +205,7 @@ print("Cleared /tmp")
 
 -- Load modules
 print()
-print("== Load Modules ==")
+print(formatLoadingHeader("Load Modules"))
 print()
 
 loadModules("/modules/")
@@ -146,7 +214,7 @@ initDrive = fs.drive.getcurrent()
 
 function doInit() -- Initalize modules
 	print()
-	print("== Initalize Modules ==")
+	print(formatLoadingHeader("Initalize Modules"))
 	print()
 	
 	for i,p in pairs(OS.modules) do
@@ -188,13 +256,6 @@ OS.cleanNils = function(t)
 	return ans
 end
 
---[[local lf = function(_, localNetworkCard, remoteAddress, port, distance, payload)
-	print("Received data '" .. tostring(payload) .. "' from address " .. remoteAddress .." on network card " .. localNetworkCard .. " on port " .. port .. ".")
-end
-
-network.registerNetworkListener(lf)
---]]
-
 OS.memAverages = {}
 
 OS.averageMem = function()
@@ -218,7 +279,7 @@ OS.doesTableContainString = function(tbl, str, caseSensitive)
 	return false
 end
 
-print("== Cleaning Root Directory ==")
+print(formatLoadingHeader("Cleaning Root Directory"))
 for f in filesystem.list("/") do -- remove unwanted files from root
 	if (not OS.doesTableContainString(OS.allowedRootFiles, f, true)) then
 		if (f:sub(f:len(), f:len()) == "/") then f = f:sub(0,f:len()-1) end -- remove '/' postfixed to directories

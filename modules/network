@@ -191,7 +191,7 @@ end
 network.pingListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
 	if (port ~= 0) and (port ~= Enum.Port.Keepalive) and (port ~= Enum.Port.General) then return end
 	if (packet.Header ~= Enum.Header.SERVERPING) then return end
-	Shell.print("Responding to Server Ping")
+	--Shell.print("Responding to Server Ping")
 	network.sendKeepalivePacket()
 end
 
@@ -206,6 +206,7 @@ network.wrappedNetworkSignalGenerator = function(_, localNetworkCard, remoteAddr
 	if (not packet) then return end
 	if (not packet.Header) or (not packet.Sender) or (not packet.Receiver) then return end
 	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
+	--print(inpkt)
 	computer.pushSignal("WrappedNetworkSignal", localNetworkCard, remoteAddress, port, distance, packet)
 end
 

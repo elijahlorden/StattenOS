@@ -37,6 +37,14 @@ Enum.Port.Stargate = 5006
 Enum.Port.StargateResponse = 5007
 Enum.Port.Notifications = 5008
 
+Enum.ResType = {}
+Enum.ResType.ACK = "ack"
+Enum.ResType.KEEPALIVE = "kpal"
+Enum.ResType.FLUSH = "flsh"
+Enum.ResType.SUCCESS = "scss"
+Enum.ResType.FAILURE = "flur"
+Enum.ResType.BUSY = "bsy"
+
 -------------------------------------------------------------------------------
 
 Enum.Side = {

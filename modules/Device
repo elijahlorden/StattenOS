@@ -49,12 +49,13 @@ end
 Device.commandListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
 	if (port ~= 0) and (port ~= Enum.Port.Command) and (port ~= Enum.Port.General) then return end
 	if (packet.Header == Enum.Header.RUNCOMMAND) then
+		if (Commands.busy) then Device.commandBusyResponse(packet) return end
 		local cmd = tostring(packet.CommandStr) or ""
-		Shell.print(packet.Sender..Shell.prompt..packet.CommandStr)
+		Shell.print("\n&#f32CD32&#"..packet.Sender.."&#fFFFFFF&#"..Shell.prompt.."&#fADD8E6&#"..packet.CommandStr.."&#fFFFFFF&#")
 		OS.sleep(0.1)
 		local strTbl = text.split(cmd, " ")
-		if (not strTbl) then Device.commandFailResponse(packet.Sender) return end
-		if (#strTbl < 1) then Device.commandFailResponse(packet.Sender) return end
+		if (not strTbl) then Device.commandFailResponse(packet) return end
+		if (#strTbl < 1) then Device.commandFailResponse(packet) return end
 		local startText = strTbl[1]
 		table.remove(strTbl, 1)
 		local newStrTbl = {}
@@ -63,25 +64,21 @@ Device.commandListener = function(_, localNetworkCard, remoteAddress, port, dist
 				table.insert(newStrTbl, p)
 			end
 		end
-		local success, response = pcall(function() return Commands.executeCommand(startText, true, table.unpack(newStrTbl)) end)
-		if (success) then
-			Device.commandResponse(packet.Sender, response)
-		else
-			Device.commandResponse(packet.Sender, {{Type = "print", text = response}})
-		end
+		local success, message = pcall(function() Commands.executeCommand(startText, packet, table.unpack(newStrTbl)) end)
+		if (not success) then print(message) end
 	end
 end
 
-
-
-Device.commandResponse = function(deviceName, resTbl)
-	local response
-	if (not resTbl) then response = {{Type = "print", text = "Command executed"}} else response = resTbl.getResponse() end
-	network.sendPacket(Enum.Port.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = response}, false)
+Device.commandFailResponse = function(packet)
+	local response = newResponse(packet)
+	response:sendAck()
+	response:sendFailure()
 end
 
-Device.commandFailResponse = function(deviceName)
-	network.sendPacket(Enum.Port.CommandResponse, {Sender = Device.currentConfig.Name, Header = "CommandResponse", Receiver = deviceName, Data = {{Type = "print", text = "Internal Error"}}}, false)
+Device.commandBusyResponse = function(packet)
+	local response = newResponse(packet)
+	response:sendAck()
+	response:sendBusy()
 end
 
 Device.updateListener = function(_, FileName, FilePath) -- FTP event Listener
@@ -102,7 +99,11 @@ Device.init = function()
 			Device.Driver.init()
 			Device.Driver.registerCommands()
 			Device.saveConfig()
+		else
+			network.registerPingListener()
 		end
+	else
+		network.registerPingListener()
 	end
 	print("Device Name: "..Device.currentConfig.Name)
 	network.registerNetworkListener(Device.commandListener)

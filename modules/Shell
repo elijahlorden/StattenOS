@@ -1,11 +1,15 @@
 Shell = {}
 
-Shell.ShellBacklog = {{Type = "print", Text = "\n== Loading complete =="}} -- {Type = "print", Text = " "}
+Shell.ShellBacklog = {{Type = "print", Text = formatLoadingHeader("Loading complete")}} -- {Type = "print", Text = " "}
 
 Shell.promptOpen = false
 
 Shell.prompt = ">>> "
 Shell.history = {}
+
+Shell.networkCommandBuffer = {}
+
+Shell.backlogDebounce = false
 
 Shell.print = function(str)
 	table.insert(Shell.ShellBacklog, {Type = "print", Text = str})
@@ -18,6 +22,7 @@ end
 Shell.stepInterval = 0.05
 Shell.step = function()
 	if (#Shell.ShellBacklog > 0) and (not Shell.promptOpen) then
+		Shell.backlogDebounce = true
 		repeat
 			local p = Shell.ShellBacklog[1]
 			if (p.Type == "print") then
@@ -27,19 +32,37 @@ Shell.step = function()
 			end
 			table.remove(Shell.ShellBacklog, 1)
 		until (#Shell.ShellBacklog == 0) or (Shell.promptOpen)
+		Shell.backlogDebounce = false
+	end
+end
+
+Shell.stepNetCmds = function()
+	for i,p in pairs(Shell.networkCommandBuffer) do
+		p.timeout = p.timeout - 2
+		if (p.timeout <= 0) then
+			if (p.ack) then
+				Shell.print(Formatters.formatError("Command '"..p.cmd.."' to "..p.receiver.." timed out"))
+			else
+				Shell.print(Formatters.formatError("Command '"..p.cmd.."' to "..p.receiver.." was not acknowledged"))
+			end
+			Shell.networkCommandBuffer[i] = nil
+		end
+		if (p.done) then Shell.networkCommandBuffer[i] = nil end
 	end
 end
 
 Shell.init = function()
 	event.listen("key_down", Shell.keyDownEventListener)
 	network.registerNetworkListener(Shell.networkCommandResponseListener, "CommandResponseListener")
+	event.timer(2, Shell.stepNetCmds, math.huge)
 end
 
 Shell.keyDownEventListener = function(event, address, key, code, plr)
 	if (Shell.promptOpen) then return end
 	Shell.promptOpen = true
-	term.write("Local"..Shell.prompt)
+	prints("\n&#f32CD32&#Local&#fFFFFFF&#"..Shell.prompt.."&#fADD8E6&#")
 	local strIn = term.read(Shell.history):gsub("\n", "")
+	prints("&#fFFFFFF&#")
 	if (strIn == "") or (strIn == " ") then Shell.promptOpen = false return end
 	local strTbl = text.split(strIn, " ")
 	if (not strTbl) then Shell.promptOpen = false return end
@@ -47,7 +70,7 @@ Shell.keyDownEventListener = function(event, address, key, code, plr)
 	if (Shell.networkCommand(strTbl)) then Shell.promptOpen = false return end
 	local startText = strTbl[1]
 	table.remove(strTbl, 1)
-	local success, message = pcall(function() Commands.executeCommand(startText, false, table.unpack(strTbl)) end)
+	local success, message = pcall(function() Commands.executeCommand(startText, nil, table.unpack(strTbl)) end)
 	if (not success) then print(message) end
 	Shell.promptOpen = false
 end
@@ -60,72 +83,57 @@ Shell.networkCommand = function(tArgs)
 	local devName = arg1[1]
 	local devCmd = arg1[2]
 	if (devName == "") or (devName == " ") or (devCmd == "") or (devCmd == " ") then return false end
-	local packet = {Header = Enum.Header.RUNCOMMAND, Receiver = devName, CommandStr = Shell.appendCmd(devCmd, tArgs)}
+	local id = OS.uuid()
+	Shell.networkCommandBuffer[id] =  {
+		id = id,
+		cmd = devCmd,
+		receiver = devName,
+		timeout = 10,
+		ack = false,
+		done = false
+	}
+	local packet = {Header = Enum.Header.RUNCOMMAND, Receiver = devName, CommandStr = Shell.appendCmd(devCmd, tArgs), id = id}
 	network.sendPacket(Enum.Port.Command, packet, false)
 	return true
 end
 
--- TODO:
--- Register sent network commands in a buffer
--- Use buffer to handle timeouts
--- Use a UUID for command IDs
-
--- Rework responses to be concurrent
--- Responses should be created by the command disbatcher and not the command itself
--- Responses should contain the sender's name
--- The sender should receiver a confirmation from the receiver that the command is being processed, otherwise it will time out after 5 seconds
--- After receiving the confirmation, the sender will reset the timeout to 20 seconds
--- A keepalive response may be sent to the sender to reset the timeout to a specific amount
--- Keepalive responses will be ignored by the sender if the command has already timed out
--- Responses should accumulate data and only send when flushed
--- Responses should keep track of time between messages for use in presentation to sender
--- Sender should delay printing of response messages based on time since last message
--- Responses should be closed with either a 'completed' call or a 'failed' message
--- Failure to provide either a success or failure state will result in a timeout
--- Command timeouts are purely for the user's benefit, and will not prevent the receiver from continuing to execute the command
--- A timeout means that the command is removed from the senders buffer, and the user can consider that command to have failed
--- A timeout does not prevent the receiver from continuing to execute the command and send responses if the command did not actually fail
-
---[[Shell.sendNetworkCommand = function(outpkt)
-	for i=1,20 do
-		local event, localNetworkCard, remoteAddress, port, distance, inpkt = event.pull(0.5, "modem_message")
-		if (event) then
-			if (port) and ((port == Enum.Port.CommandResponse) or (port == 0) or (port == Enum.Port.General)) then
-				local packet = serialization.unserialize(inpkt)
-				local Receiver = tostring(packet.Receiver) or ""
-				local Header = tostring(packet.Header) or ""
-				local Sender = tostring(packet.Sender) or ""
-				if (packet) then
-					if (Receiver ~= "") and (Sender ~= "") then
-						if (Header == "CommandResponse") and (Sender:lower() == outpkt.Receiver:lower()) then
-							if (packet.Data ~= nil) then
-								if (type(packet.Data):lower() == "table") then
-									Shell.handleResponse(packet.Data)
-									return
-								end
-							end
-						end
-					end
-				end
-			end
-		end
-	end
-	print("No response received.")
-end--]]
-
 Shell.networkCommandResponseListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
 	if (port ~= 0) and (port ~= Enum.Port.CommandResponse) and (port ~= Enum.Port.General) then return end
-	if (packer.Header ~= Enum.Header.COMMANDRESPONSE) then return end
-	
+	if (packet.Header ~= Enum.Header.COMMANDRESPONSE) then return end
+	local resType = packet.resType
+	local id = packet.id
+	local bufferEntry = Shell.networkCommandBuffer[id]
+	if (not bufferEntry) then return end
+	if (resType == Enum.ResType.ACK) then
+		Shell.print(Formatters.formatNotification(bufferEntry.receiver.." acknowledged reception of command"))
+		bufferEntry.timeout = 10
+		bufferEntry.ack = true
+	elseif (resType == Enum.ResType.KEEPALIVE) then
+		bufferEntry.timeout = tonumber(packet.keepTime) or 10
+	elseif (resType == Enum.ResType.FLUSH) then
+		if (packet.flushData) then
+			Shell.handleResponse(packet.flushData)
+		end
+		if (bufferEntry.timeout < 10) then bufferEntry.timeout = 10 end
+	elseif (resType == Enum.ResType.SUCCESS) then
+		Shell.print(Formatters.formatSuccess("Command '"..bufferEntry.cmd.."' to "..bufferEntry.receiver.." completed"))
+		bufferEntry.done = true
+	elseif (resType == Enum.ResType.FAILURE) then
+		Shell.print(Formatters.formatError("Command '"..bufferEntry.cmd.."' to "..bufferEntry.receiver.." failed"))
+		bufferEntry.done = true
+	elseif (resType == Enum.ResType.BUSY) then
+		Shell.print(Formatters.formatError(bufferEntry.receiver.." is busy"))
+		bufferEntry.done = true
+	end
 end
 
 Shell.handleResponse = function(data)
-	for i,p in pairs(data) do
-		if (p.Type ~= nil) then
-			if (p.Type == "print") then
-				Shell.print(p.text)
-			elseif (p.Type == "printPaged") then
-				Shell.printPaged(p.text)
+	for i=1,#data do
+		if (data[i].Type ~= nil) then
+			if (data[i].Type == "print") then
+				Shell.print(data[i].text)
+			elseif (data[i].Type == "printPaged") then
+				Shell.printPaged(data[i].text)
 			end
 		end
 	end
@@ -138,19 +146,5 @@ Shell.appendCmd = function(name, tbl)
 	end
 	return str
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 return Shell

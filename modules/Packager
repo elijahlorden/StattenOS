@@ -343,12 +343,6 @@ Packager.installUpdateFromDrive = function(packagePath)
 	return true
 end
 
-
-
-
-
-
-
 Packager.componentAdded = function(_, address, componentType)
 	if (componentType == "filesystem") then
 		local proxy = component.proxy(address)

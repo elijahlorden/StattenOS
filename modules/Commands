@@ -2,6 +2,10 @@ Commands = {}
 
 Commands.commandList = {}
 
+Commands.nCommands = 0
+
+Commands.busy = false
+
 Commands.registerCommand = function(name, func, helpDesc, helpArgs)
 	local tbl = {}
 	tbl.Name = name
@@ -9,27 +13,38 @@ Commands.registerCommand = function(name, func, helpDesc, helpArgs)
 	tbl.Description = helpDesc or ""
 	tbl.ArgumentMessage = helpArgs or ""
 	Commands.commandList[name] = tbl
+	Commands.nCommands = Commands.nCommands + 1
 end
 
-Commands.executeCommand = function(name, isNetwork, ...)
+Commands.executeCommand = function(name, netPacket, ...)
+	Commands.busy = true
+	local response;
+	if (netPacket) then
+		response = newResponse(netPacket)
+	else
+		response = newResponse(nil)
+	end
+	response:sendAck()
 	if (Commands.commandList[name] ~= nil) then
-		local success, response = Commands.commandList[name].Function(...)
+		local success = Commands.commandList[name].Function(response, ...)
 		if (not success) then
-			local res = newResponse()
-			print("[ ] = optional parameter;")
-			res.print("[ ] = optional parameter;")
-			print("Command usage: "..name.." "..Commands.commandList[name].ArgumentMessage)
-			res.print("Command usage: "..name.." "..Commands.commandList[name].ArgumentMessage)
-			return res
+			response:print("&#fB3B3B3&#"..Commands.commandList[name].Description)
+			response:print("Usage: &#fADD8E6&#"..Commands.commandList[name].Name.." &#fB3B3B3&#"..Commands.commandList[name].ArgumentMessage.."&#fFFFFFF&#")
+			if (string.find(Commands.commandList[name].ArgumentMessage, "%]")) then
+				response:print("&#fB3B3B3&#[ ] = optional parameter&#fFFFFFF&#")
+			end
+			response:flush()
+			response:sendFailure()
 		else
-			return response
+			response:flush()
+			response:sendSuccess()
 		end
 	else
-		print("'"..tostring(name).."' is not a valid Command.  For a list of Commands, run 'help'")
-		local res = newResponse()
-		res.print("'"..tostring(name).."' is not a valid Command.  For a list of Commands, run 'help'")
-		return res
+		response:print(Formatters.formatError("'"..tostring(name).."' is not a valid Command.  For a list of Commands, run 'help'"))
+		response:flush()
+		response:sendFailure()
 	end
+	Commands.busy = false
 end
 
 
@@ -42,86 +57,94 @@ end
 
 
 ----------------------------------------------------------------- Internal Commands
-local helpFunc = function(cmdName) -- HELP
-	local response = newResponse()
+local helpFunc = function(response, cmdName) -- HELP
 	if (cmdName == nil) then
 		local str = ""
+		local c = 0
 		for i,p in pairs(Commands.commandList) do
-			str = str..p.Name.."  ["..p.Description.."]\n"
+			c = c + 1
+			if (c == Commands.nCommands) then
+				str = str.."&#fADD8E6&#"..p.Name.."&#fFFFFFF&#\n"
+			else
+				str = str.."&#fADD8E6&#"..p.Name.."&#f00FF00&#, "
+			end
 		end
-		printPaged(str)
-		response.printPaged(str)
+		response:print(str)
+		response:flush()
 	else
 		if (Commands.commandList[cmdName] ~= nil) then
-			print("[ ] = optional parameter;")
-			response.print("[ ] = optional parameter;")
-			print("Usage: "..Commands.commandList[cmdName].Name.." "..Commands.commandList[cmdName].ArgumentMessage)
-			response.print("Usage: "..Commands.commandList[cmdName].Name.." "..Commands.commandList[cmdName].ArgumentMessage)
+			response:print("&#fB3B3B3&#"..Commands.commandList[cmdName].Description)
+			response:print("Usage: &#fADD8E6&#"..Commands.commandList[cmdName].Name.." &#fB3B3B3&#"..Commands.commandList[cmdName].ArgumentMessage.."&#fFFFFFF&#")
+			if (string.find(Commands.commandList[cmdName].ArgumentMessage, "%]")) then
+				response:print("&#fB3B3B3&#[ ] = optional parameter&#fFFFFFF&#")
+			end
+			response:flush()
 		else
-			print("'"..tostring(cmdName).."' is not a valid Command.  For a list of Commands, run 'help'")
-			response.print("'"..tostring(cmdName).."' is not a valid Command.  For a list of Commands, run 'help'")
+			response:print("'"..tostring(cmdName).."' is not a valid Command.  For a list of Commands, run 'help'")
+			response:flush()
 		end
 	end
-	return true, response
+	return true
 end
 
 Commands.registerCommand("help", helpFunc, "Displays command list", "[command]")
 
-local deviceNameFunc = function(newName) -- SET DEVICE NAME
-	local response = newResponse()
-	if (Device.currentConfig.Driver == "Server") then print("Unable to rename Central Server") response.print("Unable to rename Central Server") return true, response end
+local deviceNameFunc = function(response, newName) -- SET DEVICE NAME
+	if (Device.currentConfig.Driver == "Server") then response:print("Unable to rename Central Server") response:flush() response:sendFailure() return true end
 	local newName = tostring(newName)
 	if (newName == nil) or (newName == "") or (newName == " ") then return false end
-	if (newName:len() > 25) or (newName:len() < 5) then print("Name must 5 to 25 characters long") response.print("Name must 5 to 25 characters long") return true, response end
+	if (newName:len() > 25) or (newName:len() < 5) then response:print("Name must 5 to 25 characters long") response:flush() return true end
 	Device.currentConfig.Name = newName
-	print("Device name changed to '"..Device.currentConfig.Name.."'")
-	response.print("Device name changed to '"..Device.currentConfig.Name.."'")
+	response:print("Device name changed to '"..Device.currentConfig.Name.."'")
+	response:flush()
 	Device.saveConfig()
-	return true, response
+	return true
 end
 
 Commands.registerCommand("setDeviceName", deviceNameFunc, "Sets name of local device", "name")
 
-local deviceDriverFunc = function(newDriver) -- SET DEVICE DRIVER
-	local response = newResponse()
+local deviceDriverFunc = function(response, newDriver) -- SET DEVICE DRIVER
 	local newDriver = tostring(newDriver)
 	if (newDriver == nil) or (newDriver == "") or (newDriver == " ") then return false end
-	if (Device.driverList[newDriver] == nil) then print("Driver does not exist") response.print("Driver does not exist") end
+	if (Device.driverList[newDriver] == nil) then response:print("Driver does not exist") response:flush() response:sendFailure() return true end
 	Device.currentConfig.Driver = newDriver
-	print("Device driver changed to '"..Device.currentConfig.Driver.."'")
-	print("A reboot will be required for the change to take effect")
-	response.print("Device driver changed to '"..Device.currentConfig.Driver.."'")
-	response.print("A reboot will be required for the change to take effect")
+	response:print("Device driver changed to '"..Device.currentConfig.Driver.."'")
+	response:print("A reboot will be required for the change to take effect")
 	Device.saveConfig()
-	return true, response
+	response:flush()
+	return true
 end
 
 Commands.registerCommand("setDeviceDriver", deviceDriverFunc, "Sets driver of local device", "driverName")
 
-Commands.registerCommand("listDeviceDrivers", function() local res = newResponse() for i,p in pairs(Device.driverList) do print(i.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
+Commands.registerCommand("listDeviceDrivers", function(res) for i,p in pairs(Device.driverList) do print(i.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
 
-Commands.registerCommand("memory", function() local res = newResponse() print(OS.memoryMsgStr()) res.print(OS.memoryMsgStr()) return true, res end, "Displays memory status", "")
+Commands.registerCommand("memory", function(res) res:print(OS.memoryMsgStr()) res:flush() return true end, "Displays memory status", "")
 
-Commands.registerCommand("energy", function() local res = newResponse() print(OS.powerMsgStr()) res.print(OS.powerMsgStr()) return true, res end, "Displays energy status", "")
+Commands.registerCommand("energy", function(res) res:print(OS.powerMsgStr()) res:flush() return true end, "Displays energy status", "")
 
-Commands.registerCommand("shutdown", function() print("Shutting Downn") OS.sleep(1) network.sendShutdownPacket() Device.saveConfig() if (Device.Driver) then Device.Driver.powerOff() end computer.shutdown() return true end, "Soft poweroff", "")
+Commands.registerCommand("shutdown", function(res) res:print("Shutting Downn") res:flush() res:sendSuccess() OS.sleep(1) network.sendShutdownPacket() Device.saveConfig() if (Device.Driver) then Device.Driver.powerOff() end computer.shutdown() return true end, "Soft poweroff", "")
 
-local rebootCommand = function()
+local rebootCommand = function(response)
 	if (Device.updatePackage ~= nil) then
-		print("Update package present, installation process beginning")
-		print("Do NOT power off the machine during the update process.")
-		print("If the machine is powered off during the update process, it will no longer function correctly.")
-		print("Commencing update...")
+		response:print("Update package present, installation process beginning")
+		response:print("Do NOT power off the machine during the update process.")
+		response:print("If the machine is powered off during the update process, it will no longer function correctly.")
+		response:print("Commencing update...")
 		OS.sleep(1)
 		Packager.installUpdatePackage(Device.updatePackage)
-		print("Rebooting")
+		response:print("Rebooting")
+		response:flush()
+		response:sendSuccess()
 		OS.sleep(3)
 		network.sendShutdownPacket()
 		Device.saveConfig()
 		if (Device.Driver) then Device.Driver.powerOff() end
 		computer.shutdown(true)
 	else
-		print("Rebooting")
+		response:print("Rebooting")
+		response:flush()
+		response:sendSuccess()
 		OS.sleep(1)
 		network.sendShutdownPacket()
 		Device.saveConfig()
@@ -134,8 +157,7 @@ Commands.registerCommand("reboot", rebootCommand, "Soft reboot, will install upd
 
 Commands.registerCommand("cls", function() term.clear() return true end, "Clears the screen", "")
 
-local listDrives = function() -- LIST DRIVES
-	local response = newResponse()
+local listDrives = function(response) -- LIST DRIVES
 	local driveIter = fs.drive.list()
 	local num = 0
 	for d in driveIter do
@@ -143,95 +165,94 @@ local listDrives = function() -- LIST DRIVES
 		local address = fs.drive.toAddress(d)
 		local proxy = fs.drive.letterToProxy(d)
 		if (proxy) then
-			print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..(address or "Address_Error")..")")
-			response.print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..(address or "Address_Error")..")")
+			response:print((d or "Drive_Letter_Error").." "..("["..(proxy.getLabel() or "No Label").."]").." ("..(address or "Address_Error")..")")
 		end
 	end
-	print(num.." Drives")
-	return true, response
+	response:print(num.." Drives")
+	response:flush()
+	return true
 end
 
 Commands.registerCommand("listDrives", listDrives, "List currently attached drives", "")
 
-local installFunc = function(driveLetter) -- INSTALL TO DRIVE
-	local response = newResponse()
+local installFunc = function(response, driveLetter) -- INSTALL TO DRIVE
 	local driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
 	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
-	print("Attempting to install OS on drive "..driveLetter)
-	response.print("Attempting to install OS on drive "..driveLetter)
+	response:print("Attempting to install OS on drive "..driveLetter)
 	local success = Packager.installToDrive(driveLetter)
-	if (success) then response.print("Installation successful") else response.print("Installation Failed") end
-	return true, response
+	if (success) then response:print("Installation successful") response:flush() else response:print("Installation Failed") response:flush() response:sendSuccess() end
+	return true
 end
 
 Commands.registerCommand("install", installFunc, "Install OS to the specified drive", "driveLetter")
 
-local createInstallerFunc = function(driveLetter) -- CREATE INSTALLER FILES
-	local response = newResponse()
+local createInstallerFunc = function(response, driveLetter) -- CREATE INSTALLER FILES
 	local driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
 	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
 	local proxy = fs.drive.letterToProxy(driveLetter)
-	if (not proxy) then print("Drive does not exist") response.print("Drive does not exist") return true, response end
-	print("Creating installer files on drive "..driveLetter)
-	response.print("Creating installer files on drive "..driveLetter)
+	if (not proxy) then response:print("Drive does not exist") response:flush() response:sendFailure() return true end
+	response:print("Creating installer files on drive "..driveLetter)
+	response:flush()
 	local insProg, insData = Packager.assembleInstallFiles()
 	Packager.writeFile(proxy, "/Installer", insProg)
 	Packager.writeFile(proxy, "/InstallData", insData)
-	response.print("Installer files written")
-	print("Installer files written")
-	return true, response
+	response:print("Installer files written")
+	response:flush()
+	return true
 end
 
 Commands.registerCommand("createInstallFiles", createInstallerFunc, "Create installer files", "driveLetter")
 
-local installMiniappFunc = function(driveLetter, appName)
+local installMiniappFunc = function(response, driveLetter, appName)
 	if (not appName) or (appName == "") or (appName == " ") then return false end
-	local response = newResponse()
 	local driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
 	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
 	if (Device.miniAppList[appName] ~= nil) then
 		local file = "/miniapps/"..Device.miniAppList[appName].file
-		if (not filesystem.exists(file)) then print("App file not found") response.print("App file not found") return true, response end
-		if (not Packager.installMiniAppToDrive(driveLetter, file)) then print("Installation Failed") response.print("Installation Failed") return true, response end
-		print("Installed "..appName.." on drive "..driveLetter)
-		response.print("Installed "..appName.." on drive "..driveLetter)
+		if (not filesystem.exists(file)) then  response:print("App file not found") response:flush() response:sendFailure() return true end
+		if (not Packager.installMiniAppToDrive(driveLetter, file)) then  response:print("Installation Failed") response:flush() response:sendFailure() return true end
+		response:print("Installed "..appName.." on drive "..driveLetter)
+		response:flush()
 		local proxy = fs.drive.letterToProxy(driveLetter)
 		if (proxy) then proxy.setLabel("ma:"..appName) end
 	end
-	return true, response
+	return true
 end
 
 Commands.registerCommand("installMiniApp", installMiniappFunc, "Install a MiniApplication to the specified drive", "driveLetter, appName")
 
-Commands.registerCommand("listMiniApps", function() local res = newResponse() for i,p in pairs(Device.miniAppList) do print(p.Name.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
+Commands.registerCommand("listMiniApps", function(res) for i,p in pairs(Device.miniAppList) do res:print(i.." -- "..p.desc) end res:flush() return true end, "List available device drivers", "")
 
-local listComponentMethodsFunc = function(uuid) -- Print list of component methods
-	local response = newResponse()
+local listComponentMethodsFunc = function(response, uuid) -- Print list of component methods
 	local c = component.get(uuid)
 	if (not c) then
-		print("Component does not exist")
-		response.print("Component does not exist")
-		return true, response
+		response:print("Component does not exist")
+		response:flush()
+		return true
 	end
 	local s = serialization.serialize(component.proxy(c), 10000)
-	response.printPaged(s)
-	printPaged(s)
-	return true, response
+	response:printPaged(s)
+	response:flush()
+	return true
 end
 
 Commands.registerCommand("listComponentMethods", listComponentMethodsFunc, "List methods for component", "UUID (can be partial)")
 
-local updateFromFileFunc = function(path) -- Update OS from packaged installData file
-	local response = newResponse()
+local updateFromFileFunc = function(response, path) -- Update OS from packaged installData file
 	if (not path) then return false end
 	local proxy = fs.drive.letterToProxy(path:sub(1,1):upper() or "")
-	if (not proxy) then print("Drive does not exist") response.print("Drive does not exist") return true, response end
+	if (not proxy) then response:print("Drive does not exist") response:flush() response:sendFailure() return true end
 	local success = Packager.installUpdateFromDrive(path)
-	local msg = success and "Update completed" or "Update failed"
-	if (success) then Device.updatePackage = nil end
-	print(msg)
-	response.print(msg)
-	return true, response
+	if (success) then
+		Device.updatePackage = nil
+		response:print("Update completed")
+		response:flush()
+	else
+		response:print("Update failed")
+		response:flush()
+		response:sendFailure()
+	end
+	return true
 end
 
 Commands.registerCommand("updateFromFile", updateFromFileFunc, "Update local installation from file", "Path (absolute)")

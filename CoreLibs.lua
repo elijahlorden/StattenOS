@@ -1070,8 +1070,45 @@ local function printProcess(...)
   return argstr
 end
 
-function print(...)
+--[[function print(...)
   term.write(printProcess(...).."\n", true)
+end--]]
+
+function getColor(str)
+	if (str:len() ~= 7) then return end
+	str = str:upper()
+	str = str:sub(2)
+	local colorNum = tonumber("0x"..str)
+	if (not colorNum) then return end
+	return colorNum
+end
+
+function print(str)
+	if (not str) then term.write("\n") return end
+	prints(str.."\n")
+end
+
+function prints(str)
+	if not term.isAvailable() then return end
+	local splitStr = text.split(str, "&#")
+	for i,p in pairs(splitStr) do
+		if (i%2 == 0) then -- Tags will be every even entry
+			local cType = p:sub(1,1):upper()
+			if (cType == "B") then
+				local color = getColor(p)
+				if (color) then
+					component.gpu.setBackground(color)
+				end
+			elseif (cType == "F") then
+				local color = getColor(p)
+				if (color) then
+					component.gpu.setForeground(color)
+				end
+			end
+		else
+			term.write(p, true)
+		end
+	end
 end
 
 function printErr(...)
