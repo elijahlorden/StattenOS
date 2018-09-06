@@ -22,7 +22,7 @@ Tablet.registerCommands = function()
 	Commands.registerCommand("fetchGateRegistry", Tablet.fetchGateRegistryCommand, "Manually fetch GateRegistry from Server", "")
 end
 
-Tablet.registerGateCommand = function(gateName, address, switch1)
+Tablet.registerGateCommand = function(response, gateName, address, switch1)
 	gateName = tostring(gateName) or ""
 	address = tostring(address) or ""
 	if (gateName == "") or (gateName == " ") or (address == "") or (address == " ") then return false end
@@ -38,7 +38,7 @@ Tablet.registerGateCommand = function(gateName, address, switch1)
 	return true
 end
 
-Tablet.unregisterGateCommand = function(gateName, switch1)
+Tablet.unregisterGateCommand = function(response, gateName, switch1)
 	gateName = tostring(gateName) or ""
 	if (gateName == "") or (gateName == " ") then return false end
 	if (switch1 == "-p") then
@@ -53,7 +53,7 @@ Tablet.unregisterGateCommand = function(gateName, switch1)
 	return true
 end
 
-Tablet.listGates = function()
+Tablet.listGates = function(response)
 	local num = 0
 	local str = ""
 	for i,p in pairs(Device.currentConfig.GateRegistry) do
@@ -66,7 +66,7 @@ Tablet.listGates = function()
 	return true
 end
 
-Tablet.listPersonalGates = function()
+Tablet.listPersonalGates = function(response)
 	local num = 0
 	local str = ""
 	for i,p in pairs(Device.currentConfig.PersonalGateRegistry) do
@@ -79,14 +79,14 @@ Tablet.listPersonalGates = function()
 	return true
 end
 
-Tablet.fetchGateRegistryCommand = function()
+Tablet.fetchGateRegistryCommand = function(response)
 	local outPkt = {Header = Enum.Header.FETCHGATEREGISTRY}
 	network.sendPacket(Enum.Port.Stargate, outPkt, false)
 	print("GateRegistryFetch packet sent")
 	return true
 end
 
-Tablet.dialGateCommand = function(dialAddress, switch1)
+Tablet.dialGateCommand = function(response, dialAddress, switch1)
 	dialAddress = tostring(dialAddress)
 	if (not dialAddress) or (dialAddress == "") or (dialAddress == " ") then return false end
 	local sendAddress = dialAddress
@@ -103,7 +103,7 @@ Tablet.dialGateCommand = function(dialAddress, switch1)
 	return true
 end
 
-Tablet.closeGateCommand = function()
+Tablet.closeGateCommand = function(response)
 	local packet = {Header = Enum.Header.Gate.CLOSEGATE}
 	network.sendPacketWithoutLink(Enum.Port.Stargate, packet, true)
 	print("Sending Termination packet...")

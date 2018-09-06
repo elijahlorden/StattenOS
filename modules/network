@@ -184,7 +184,7 @@ network.notifications.listener = function(_, localNetworkCard, remoteAddress, po
 	if (packet.Header ~= Enum.Header.NOTIFICATION) then return end
 	if (not packet.Message) then return end
 	computer.beep(2000)
-	Shell.print(packet.Message)
+	Shell.print("&#fFFFF00&#"..packet.Message.."&#fFFFFFF&#")
 	computer.beep(2000)
 end
 

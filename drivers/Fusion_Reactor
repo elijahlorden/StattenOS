@@ -39,30 +39,26 @@ FusionReactor.setup = function()
 	
 end
 
-FusionReactor.injectionRateFunc = function(num)
-	local response = newResponse()
+FusionReactor.injectionRateFunc = function(response, num)
 	local c = FusionReactor.getComponentProxy("reactorInterface")
-	if (not c) then print("No reactorInterface detected") response.print("No reactorInterface detected") return true, response end
+	if (not c) then response:print("No reactorInterface detected") response:flush() response:sendFailure() return true end
 	if (num == nil) then
-		print("Current injection rate: "..c.getInjectionRate())
-		response.print("Current injection rate: "..c.getInjectionRate())
-		return true, response
+		response:print("Current injection rate: "..c.getInjectionRate())
+		return true
 	end
 	num = tonumber(num) or 0
 	c.setInjectionRate(num)
-	print("Set injection rate to "..num)
-	response.print("Set injection rate to "..num)
-	return true, response
+	response:print("Set injection rate to "..num)
+	return true
 end
 
-FusionReactor.igniteFunc = function(delay)
-	local response = newResponse()
+FusionReactor.igniteFunc = function(response, delay)
 	local c = FusionReactor.getComponentProxy("laserFire")
-	if (not c) then print("No laserFire detected") response.print("No laserFire detected") return true, response end
+	if (not c) then response:print("No laserFire detected") response:flush() response:sendFailure() return true end
 	local r = FusionReactor.getComponentProxy("reactorInterface")
-	if (not r) then print("No reactorInterface detected") response.print("No reactorInterface detected") return true, response end
+	if (not r) then response:print("No reactorInterface detected") response:flush() response:sendFailure() return true, response end
 	delay = math.max(5,tonumber(delay) or 5)
-	Shell.print("Preparing to ignite reactor")
+	response:print("Preparing to ignite reactor")
 	event.timer(delay, function()
 		for i=0,5 do
 			c.setOutput(i,15)
@@ -84,110 +80,96 @@ FusionReactor.igniteFunc = function(delay)
 			network.notifications.broadcast("Fusion Reactor ignition has failed")
 		end
 	end)
-	return true, response
+	return true
 end
 
-FusionReactor.stopFunc = function()
-	local response = newResponse()
+FusionReactor.stopFunc = function(response)
 	local c = FusionReactor.getComponentProxy("reactorInterface")
-	if (not c) then print("No reactorInterface detected") response.print("No reactorInterface detected") return true, response end
+	if (not c) then response:print("No reactorInterface detected") response:flush() response:sendFailure() return true end
 	c.setInjectionRate(0)
-	Shell.print("Reactor Injectors deactivated")
-	return true, response
+	response:print("Reactor Injectors deactivated")
+	return true
 end
 
-FusionReactor.injectMixFunc = function(duration)
-	local response = newResponse()
+FusionReactor.injectMixFunc = function(response, duration)
 	duration = math.max(0.1, tonumber(duration) or 0.1)
 	local c = FusionReactor.getComponentProxy("mixInjector")
-	if (not c) then print("No mixInjector detected") response.print("No mixInjector detected") return true, response end
+	if (not c) then response:print("No mixInjector detected") response:flush() response:sendFailure() return true end
 	for i=0,5 do
 		c.setOutput(i,15)
 	end
-	Shell.print("Mix Injector activated for "..duration.." seconds")
-	response.print("Mix Injector activated for "..duration.." seconds")
+	response:print("Mix Injector activated for "..duration.." seconds")
 	event.timer(duration, function()
 		for i=0,5 do
 			c.setOutput(i,0)
 		end
 		Shell.print("Mix Injector deactivated")
 	end)
-	return true, response
+	return true
 end
 
 FusionReactor.stopInjectingMixFunc = function()
 local response = newResponse()
 	local c = FusionReactor.getComponentProxy("mixInjector")
-	if (not c) then print("No mixInjector detected") response.print("No mixInjector detected") return true, response end
+	if (not c) then response:print("No mixInjector detected") response:flush() response:sendFailure() return true end
 	for i=0,5 do
 		c.setOutput(i,0)
 	end
-	Shell.print("Mix Injector deactivated")
-	response.print("Mix Injector deactivated")
-	return true, response
+	response:print("Mix Injector deactivated")
+	return true
 end
 
-FusionReactor.startChargingFunc = function()
-	local response = newResponse()
+FusionReactor.startChargingFunc = function(response)
 	local c = FusionReactor.getComponentProxy("laserCharge")
-	if (not c) then print("No laserCharge detected") response.print("No laserCharge detected") return true, response end
-	if (c.getOutput(0) > 1) then print("Laser charging circuit already activated") response.print("Laser charging circuit already activated") return true, response end
+	if (not c) then response:print("No laserCharge detected") response:flush() response:sendFailure() return true end
+	if (c.getOutput(0) > 1) then response.print("Laser charging circuit already activated") response:flush() response:sendFailure() return true end
 	for i=0,5 do
 		c.setOutput(i,15)
 	end
-	Shell.print("Laser charging circuit activated")
-	response.print("Laser charging circuit activated")
-	return true, response
+	response:print("Laser charging circuit activated")
+	return true
 end
 
-FusionReactor.stopChargingFunc = function()
-	local response = newResponse()
+FusionReactor.stopChargingFunc = function(response)
 	local c = FusionReactor.getComponentProxy("laserCharge")
-	if (not c) then print("No laserCharge detected") response.print("No laserCharge detected") return true, response end
-	if (c.getOutput(0) < 1) then print("Laser charging circuit already deactivated") response.print("Laser charging circuit already deactivated") return true, response end
+	if (not c) then response.print("No laserCharge detected") response:flush() response:sendFailure() return true end
+	if (c.getOutput(0) < 1) then response:print("Laser charging circuit already deactivated") response:flush() response:sendFailure() return true end
 	for i=0,5 do
 		c.setOutput(i,0)
 	end
-	Shell.print("Laser charging circuit deactivated")
-	response.print("Laser charging circuit deactivated")
-	return true, response
+	response:print("Laser charging circuit deactivated")
+	return true
 end
 
-FusionReactor.setCompAddressFunc = function(name, address)
+FusionReactor.setCompAddressFunc = function(response, name, address)
 	if (not name) or (not address) then return false end
-	local response = newResponse()
 	local addressList = Device.currentConfig.FusionComponents
 	if (addressList[name]) then
 		local realAddress = component.get(address)
-		if (not realAddress) then print("Component does not exist") response.print("Component does not exist") return true, response end
+		if (not realAddress) then response:print("Component does not exist") response:flush() response:sendFailure() return true end
 		addressList[name].Value = realAddress
-		Shell.print(name.." assigned to {"..realAddress.."}")
+		response:print(name.." assigned to {"..realAddress.."}")
 	else
-		Shell.print("Component name incorrect")
-		response.print("Component name incorrect")
+		response:print("Component name incorrect")
 	end
 	Device.saveConfig()
-	return true, response
+	return true
 end
 
-FusionReactor.listComponentsFunc = function()
-	local response = newResponse()
+FusionReactor.listComponentsFunc = function(response)
 	for i,p in pairs(Device.currentConfig.FusionComponents) do
-		Shell.print(i.."        "..p.Desc.."  {"..p.Value.."}")
-		response.print(i.."        "..p.Desc.."  {"..p.Value.."}")
+		response:print(i.."        "..p.Desc.."  {"..p.Value.."}")
 	end
-	return true, response
+	return true
 end
 
-FusionReactor.statusFunc = function()
-	local response = newResponse()
+FusionReactor.statusFunc = function(response)
 	local laserCharge = FusionReactor.getComponentProxy("laserCharge")
-	if (not laserCharge) then print("No laserCharge detected") response.print("No laserCharge detected") return true, response end
+	if (not laserCharge) then response.print("No laserCharge detected") response:flush() response:sendFailure() return true end
 	local reactor = FusionReactor.getComponentProxy("reactorInterface")
-	if (not reactor) then print("No reactorInterface detected") response.print("No reactorInterface detected") return true, response end
+	if (not reactor) then response.print("No reactorInterface detected") response:flush() response:sendFailure() return true end
 	local laserReader = FusionReactor.getComponentProxy("laserReader")
-	if (not laserReader) then print("No laserReader detected") response.print("No laserReader detected") return true, response end
-	
+	if (not laserReader) then response.print("No laserReader detected") response:flush() response:sendFailure() return true end
 	
 	local str = ""
 	str = str.."   -- LASER --   ".."\n"
@@ -207,9 +189,8 @@ FusionReactor.statusFunc = function()
 	else
 		str = str.."    Not Running    "
 	end
-	Shell.print(str)
-	response.print(str)
-	return true, response
+	response:print(str)
+	return true
 end
 
 FusionReactor.prevRunning = false
@@ -233,7 +214,6 @@ FusionReactor.loopFunc = function()
 	if (not currRunning) and (prevRunning) then 
 		Shell.print("Fusion Reactor has deactivated")
 		network.notifications.broadcast("Fusion Reactor has deactivated")
-
 	else
 		prevRunning = currRunning
 	end

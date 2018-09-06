@@ -64,7 +64,7 @@ local helpFunc = function(response, cmdName) -- HELP
 		for i,p in pairs(Commands.commandList) do
 			c = c + 1
 			if (c == Commands.nCommands) then
-				str = str.."&#fADD8E6&#"..p.Name.."&#fFFFFFF&#\n"
+				str = str.."&#fADD8E6&#"..p.Name.."&#fFFFFFF&#"
 			else
 				str = str.."&#fADD8E6&#"..p.Name.."&#f00FF00&#, "
 			end
