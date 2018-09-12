@@ -7,7 +7,6 @@ function OS.sleep(timeout)
 	until computer.uptime() >= deadline
 end
 
-
 function loadfile(file, mode, env)
   local handle, reason = filesystem.open(file)
   if not handle then
@@ -100,7 +99,28 @@ function sendClosingPacket()
 	network.sendPacketWithoutLink(Enum.Port.StargateResponse, packet, true)
 end
 
+currentConfig = {}
 
+loadConfig = function()
+	local str = Packager.getFileString("/config")
+	if (not str) then print("'/config' does not exist, creating new configuration file") return end
+	currentConfig = serialization.unserialize(str) or currentConfig
+	return true
+end
+
+saveConfig = function()
+	local str = serialization.serialize(currentConfig)
+	local handle, reason = filesystem.open("/config", "w")
+	if (not handle) then
+		print("Unable to open file ".."/config".."("..reason..")")
+		return false
+	end
+	filesystem.write(handle, str)
+	filesystem.close(handle)
+	return true
+end
+
+loadConfig()
 
 function networkListener(_, localNetworkCard, remoteAddress, port, distance, inpkt)
 	if (not inpkt) then return end
@@ -121,6 +141,7 @@ function networkListener(_, localNetworkCard, remoteAddress, port, distance, inp
 		end
 	elseif (packet.Header == "sendGDO") then
 
+	elseif (packet.Header == "")
 	end
 end
 
@@ -142,9 +163,13 @@ function gateEvent(tArgs)
 		end
 		lastGateState = newState
 	elseif (tArgs[1] == "sgMessageReceived") then
-
+		
 	end
 	lastGateEvent = tArgs[1]
+end
+
+function handleGatePacket(src, inpkt)
+	
 end
 
 while true do

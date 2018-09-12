@@ -24,6 +24,10 @@ Enum.Header.Gate = {
   GATECONNECTED     = "GCN",
   DIALGATE          = "DG",
   CLOSEGATE         = "CG",
+  SENDGDO			= "SGDO",
+  GDORESPONSE		= "GDORES",
+  GETLOCALREGISTRY	= "GLREG",
+  LOCALREGISTRYRES	= "LREGRES"
 }
 
 Enum.Port = {}

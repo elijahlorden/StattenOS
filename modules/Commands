@@ -103,6 +103,18 @@ end
 
 Commands.registerCommand("setDeviceName", deviceNameFunc, "Sets name of local device", "name")
 
+local setFunc = function(response, name, value)
+	
+end
+
+Commands.registerCommand("seting", deviceNameFunc, "Get/set the value of a setting", "name [value]")
+
+local listSettingsFunc = function(response)
+	
+end
+
+Commands.registerCommand("listSettings", listSettingsFunc, "List all of the settings currently registered", "")
+
 local deviceDriverFunc = function(response, newDriver) -- SET DEVICE DRIVER
 	local newDriver = tostring(newDriver)
 	if (newDriver == nil) or (newDriver == "") or (newDriver == " ") then return false end
@@ -195,6 +207,7 @@ local createInstallerFunc = function(response, driveLetter) -- CREATE INSTALLER 
 	response:flush()
 	local insProg, insData = Packager.assembleInstallFiles()
 	Packager.writeFile(proxy, "/Installer", insProg)
+	OS.sleep(0.1)
 	Packager.writeFile(proxy, "/InstallData", insData)
 	response:print("Installer files written")
 	response:flush()

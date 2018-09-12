@@ -94,7 +94,9 @@ Packager.assembleInstallFiles = function()
 	local OSproxy = fs.drive.letterToProxy("A")
 	local str = Packager.installProgPart1
 	local packagedOS = Packager.packageIntoTable()
+	OS.sleep(0.1)
 	local serializedOS = JSON.encode(packagedOS)
+	OS.sleep(0.1)
 	local JSONModule = Packager.getFileString("/modules/JSON")
 	str = str..JSONModule
 	str = str..Packager.installProgPart2

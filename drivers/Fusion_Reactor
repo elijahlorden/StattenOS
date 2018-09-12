@@ -33,10 +33,39 @@ FusionReactor.registerCommands = function()
 	Commands.registerCommand("status", FusionReactor.statusFunc, "Print status of Fusion Reactor and laser assembly", "")
 	Commands.registerCommand("injectMix", FusionReactor.injectMixFunc, "Enable D-T injection directly into the reactor chamber", "[duration (defaults to 0.1)]")
 	Commands.registerCommand("stopInjectingMix", FusionReactor.stopInjectingMixFunc, "Emergency shutoff for Mix Injector", "")
+	Commands.registerCommand("autoIgnite", FusionReactor.autoIgniteFunc, "Enable or disable Automatic Ignition", "enable:disable")
 end
 
 FusionReactor.setup = function()
 	
+end
+
+FusionReactor.autoIngiteTick = function()
+	
+end
+
+FusionReactor.autoIgniteFunc = function(response, arg)
+	arg = tostring(arg or ""):lower()
+	if (arg == "enable") then
+		if (config.autoIgnite) then
+			response:print("Automatic Ignition already enabled")
+			response:sendFailure()
+		else
+			config.autoIgnite = true
+			response:print("Automatic Ignition enabled")
+		end
+	elseif (arg == "disable") then
+		if (config.autoIgnite) then
+			config.autoIgnite = false
+			response:print("Automatic Ignition disabled")
+		else
+			response:print("Automatic Ignition already disabled")
+			response:sendFailure()
+		end
+	else
+		return false
+	end
+	return true
 end
 
 FusionReactor.injectionRateFunc = function(response, num)

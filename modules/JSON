@@ -62,6 +62,7 @@ local isEncodable
 -- @param v The Lua object / variable to be JSON encoded.
 -- @return String containing the JSON encoding in internal Lua string format (i.e. not unicode)
 function json.encode (v)
+	OS.sleep(0.1)
   -- Handle nil values
   if v==nil then
     return "null"
@@ -70,7 +71,7 @@ function json.encode (v)
   local vtype = type(v)
 
   -- Handle strings
-  if vtype=='string' then    
+  if vtype=='string' then
     return '"' .. json_private.encodeString(v) .. '"'	    -- Need to handle encoding in string
   end
   

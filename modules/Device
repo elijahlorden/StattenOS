@@ -15,6 +15,7 @@ Device.miniAppList = {
 Device.currentConfig = {
 	Name = computer.address():sub(1,8);
 	Driver = "Default";
+	Settings = {} -- Entry = Name = {Group = "group", Type = "string", Value = "default"}
 }
 
 Device.Driver = nil
@@ -30,6 +31,7 @@ Device.loadConfig = function()
 	local str = Packager.getFileString("/config")
 	if (not str) then print("'/config' does not exist, creating new configuration file") return end
 	Device.currentConfig = serialization.unserialize(str) or Device.currentConfig
+	if (not Device.currentConfig.Settings) then Device.currentConfig.Settings = {} end
 	return true
 end
 
@@ -43,6 +45,36 @@ Device.saveConfig = function()
 	filesystem.write(handle, str)
 	filesystem.close(handle)
 	return true
+end
+
+Device.getSetting = function(name)
+	if (Device.currentConfig.Settings[name]) then
+		return true, Device.currentConfig.Settings[name].Value
+	end
+	return false, nil
+end
+
+-- Returns: 0 = ok, 1 = setting does not exist, 2 = type mismatch
+Device.setSetting = function(name, value) then
+	if (tonumber(value)) then value = tonumber(value)) end
+	if (Device.currentConfig.Settings[name]) then
+		if (type(value):lower() == Device.currentConfig.Settings[name].Type:lower()) then
+			Device.currentConfig.Settings[name].Value = value
+			return 0
+		else
+			return 2
+		end
+	end
+	return 1
+end
+
+Device.getSettingsList = function()
+	local tbl = {}
+	for i,p in pairs(Device.currentConfig.Settings) do
+		if (not tbl[p.Group]) then tbl[p.Group] = {} end
+		table.insert(tbl[p.Group], i)
+	end
+	return tbl
 end
 
 
