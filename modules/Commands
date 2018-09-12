@@ -101,16 +101,51 @@ local deviceNameFunc = function(response, newName) -- SET DEVICE NAME
 	return true
 end
 
-Commands.registerCommand("setDeviceName", deviceNameFunc, "Sets name of local device", "name")
+Commands.registerCommand("setDeviceName", deviceNameFunc, "Sets the name of the device", "name")
 
 local setFunc = function(response, name, value)
-	
+	if (not name) then return false end
+	if (type(name) ~= "string") then return false end
+	if (value) then
+		local err, value = Device.getSetting(name)
+		if (err == 0) then
+			response:print("&#f00FF00&#"..name.."&#fFFFFFF&#:&#fFFA500&#"..value.."&#fFFFFFF&#")
+		elseif (err == 1) then
+			response:print("Setting '"..name.."' does not exist")
+			response:sendFailure()
+		elseif (err == 2) then
+			response:print("Type mismatch: setting '"..name.."' is type '"..value.."'")
+			response:sendFailure()
+		end
+	else
+		local exists, value = Device.getSetting(name)
+		if (exists) then
+			response:print("&#f00FF00&#"..name.."&#fFFFFFF&#:&#fFFA500&#"..value.."&#fFFFFFF&#")
+		else
+			response:print("Setting '"..name.."' does not exist")
+			response:sendFailure()
+		end
+	end
+	return true
 end
 
 Commands.registerCommand("seting", deviceNameFunc, "Get/set the value of a setting", "name [value]")
 
 local listSettingsFunc = function(response)
-	
+	local str = "List of currently registered settings:"
+	local list = Device.getSettingsList()
+	for groupName,group in pairs(list) do
+		str = str.."\n&#f00FFFF&#"..groupName..": &#fFFA500&#"
+		for i=1,#group do
+			if (i == #group) then
+				str = str..group[1].."\n"
+			else
+				str = str..group[1]..", "
+			end	
+		end
+	end
+	response:print(str)
+	return true
 end
 
 Commands.registerCommand("listSettings", listSettingsFunc, "List all of the settings currently registered", "")

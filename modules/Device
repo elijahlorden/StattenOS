@@ -62,7 +62,7 @@ Device.setSetting = function(name, value) then
 			Device.currentConfig.Settings[name].Value = value
 			return 0
 		else
-			return 2
+			return 2, Device.currentConfig.Settings[name].Type:lower()
 		end
 	end
 	return 1
