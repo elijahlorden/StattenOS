@@ -64,7 +64,7 @@ network.closePort = function(port)
 end
 
 network.registerNetworkListener = function(func, name)
-	event.listen("WrappedNetworkSignal", func)
+	event.listen(Enum.Event.WRAPPEDNETWORKSIGNAL, func)
 	if (name) then print("Registered NetworkListener "..name) end
 end
 
@@ -160,7 +160,7 @@ network.ftp.listener = function(_, localNetworkCard, remoteAddress, port, distan
 			if (tmpProxy.size("/tmp/"..packet.FileName.."_Partial") == packet.Bytes) then
 				Shell.print("ByteCount matches, finalizing file transfer")
 				tmpProxy.rename("/tmp/"..packet.FileName.."_Partial", "/tmp/"..packet.FileName)
-				computer.pushSignal("ftp_file_received", packet.FileName, "/tmp/"..packet.FileName)
+				computer.pushSignal(Enum.Event.FTPFILERECEIVED, packet.FileName, "/tmp/"..packet.FileName)
 			else
 				Shell.print("ByteCount mismath, aborting file transfer")
 				tmpProxy.remove("/tmp/"..packet.FileName.."_Partial")
@@ -170,7 +170,7 @@ network.ftp.listener = function(_, localNetworkCard, remoteAddress, port, distan
 end
 
 network.ftp.registerFtpListener = function(func)
-	event.listen("ftp_file_received", func)
+	event.listen(Enum.Event.FTPFILERECEIVED, func)
 end
 
 network.notifications.broadcast = function(message)
@@ -184,7 +184,7 @@ network.notifications.listener = function(_, localNetworkCard, remoteAddress, po
 	if (packet.Header ~= Enum.Header.NOTIFICATION) then return end
 	if (not packet.Message) then return end
 	computer.beep(2000)
-	Shell.print("&#fFFFF00&#"..packet.Message.."&#fFFFFFF&#")
+	Shell.print("&#fFFFF00&#[NOTIFICATION]&#fFFFF00&# "..packet.Message.."&#fFFFFFF&#")
 	computer.beep(2000)
 end
 
@@ -207,7 +207,7 @@ network.wrappedNetworkSignalGenerator = function(_, localNetworkCard, remoteAddr
 	if (not packet.Header) or (not packet.Sender) or (not packet.Receiver) then return end
 	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
 	--print(inpkt)
-	computer.pushSignal("WrappedNetworkSignal", localNetworkCard, remoteAddress, port, distance, packet)
+	computer.pushSignal(Enum.Event.WRAPPEDNETWORKSIGNAL, localNetworkCard, remoteAddress, port, distance, packet)
 end
 
 

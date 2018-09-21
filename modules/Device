@@ -15,7 +15,11 @@ Device.miniAppList = {
 Device.currentConfig = {
 	Name = computer.address():sub(1,8);
 	Driver = "Default";
-	Settings = {} -- Entry = Name = {Group = "group", Type = "string", Value = "default"}
+	Settings = {} -- Entry = Name = {Group = "group", Type = "string", Value = "default", Default = "default"}
+}
+
+Device.settingSubtypes = {
+	component = "string",
 }
 
 Device.Driver = nil
@@ -47,6 +51,12 @@ Device.saveConfig = function()
 	return true
 end
 
+Device.registerSettings = function(reg)
+	reg("Device", {
+		{"Test", "component", "null"};
+	})
+end
+
 Device.getSetting = function(name)
 	if (Device.currentConfig.Settings[name]) then
 		return true, Device.currentConfig.Settings[name].Value
@@ -54,13 +64,44 @@ Device.getSetting = function(name)
 	return false, nil
 end
 
+Device.settingUpdatedFunc = function(_, name, setting)
+	if (setting.Subtype == "component") then
+		local realAddress = component.get(setting.Value)
+		Device.setSetting(name, realAddress or "INVALID UUID")
+	end
+end
+
+Device.registerSettingsFunc = function(groupName, tbl)
+	for i,p in pairs(tbl) do
+		if (p[1]) and (p[2]) and (p[3]) then --Name, Type, Default
+			local sName = groupName.."."..p[1]
+			local exists, value = Device.getSetting(sName)
+			if (exists) then
+				Device.currentConfig.Settings[sName].Default = p[3]
+			else
+				local sType = (Device.settingSubtypes[p[2]:lower()]) and Device.settingSubtypes[p[2]:lower()] or p[2]:lower()
+				Device.currentConfig.Settings[sName] = {
+					Group = groupName,
+					Type = sType:lower(),
+					Value = p[3],
+					Default = p[3],
+					Subtype = p[2]:lower(),
+					Desc = ((p[4]) and p[4] or "No description provided")
+				}
+			end
+		end
+	end
+end
+
 -- Returns: 0 = ok, 1 = setting does not exist, 2 = type mismatch
-Device.setSetting = function(name, value) then
-	if (tonumber(value)) then value = tonumber(value)) end
+Device.setSetting = function(name, value)
+	if (tonumber(value)) then value = tonumber(value) end
 	if (Device.currentConfig.Settings[name]) then
+		if (Device.currentConfig.Settings[name].Type:lower() == "string") then value = tostring(value) end 
 		if (type(value):lower() == Device.currentConfig.Settings[name].Type:lower()) then
 			Device.currentConfig.Settings[name].Value = value
-			return 0
+			computer.pushSignal(Enum.Event.SETTINGUPDATED, name, Device.currentConfig.Settings[name])
+			return 0, Device.currentConfig.Settings[name].Value
 		else
 			return 2, Device.currentConfig.Settings[name].Type:lower()
 		end
@@ -68,15 +109,18 @@ Device.setSetting = function(name, value) then
 	return 1
 end
 
+Device.registerSettingListener = function(func)
+	event.listen(Enum.Event.SETTINGUPDATED, func)
+end
+
 Device.getSettingsList = function()
 	local tbl = {}
 	for i,p in pairs(Device.currentConfig.Settings) do
 		if (not tbl[p.Group]) then tbl[p.Group] = {} end
-		table.insert(tbl[p.Group], i)
+		table.insert(tbl[p.Group], i:sub(p.Group:len()+2))
 	end
 	return tbl
 end
-
 
 Device.commandListener = function(_, localNetworkCard, remoteAddress, port, distance, packet)
 	if (port ~= 0) and (port ~= Enum.Port.Command) and (port ~= Enum.Port.General) then return end
@@ -128,8 +172,9 @@ Device.init = function()
 		Device.Driver = dofile(driverPath)
 		if (Device.Driver) then
 			Device.Driver.load(Device.currentConfig)
-			Device.Driver.init()
-			Device.Driver.registerCommands()
+			if (Device.Driver.init) then Device.Driver.init() end
+			if (Device.Driver.registerCommands) then Device.Driver.registerCommands() end
+			if (Device.Driver.registerSettings) then Device.Driver.registerSettings(Device.registerSettingsFunc) end
 			Device.saveConfig()
 		else
 			network.registerPingListener()
@@ -137,6 +182,8 @@ Device.init = function()
 	else
 		network.registerPingListener()
 	end
+	Device.registerSettings(Device.registerSettingsFunc)
+	Device.registerSettingListener(Device.settingUpdatedFunc)
 	print("Device Name: "..Device.currentConfig.Name)
 	network.registerNetworkListener(Device.commandListener)
 	network.ftp.registerFtpListener(Device.updateListener)

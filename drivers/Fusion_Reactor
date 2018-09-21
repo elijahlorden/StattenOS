@@ -1,25 +1,17 @@
 local FusionReactor = {}
 
+FusionReactor.hohlraumLabel = "Hohlraum"
+FusionReactor.deuteriumLabel = "Liquid Deuterium"
+FusionReactor.tritiumLabel = "Liquid Tritium"
+FusionReactor.settingsGroup = "FusionReactor"
+
 FusionReactor.init = function()
 	event.timer(5, FusionReactor.loopFunc, math.huge)
 	network.registerPingListener()
 end
 
-FusionReactor.defaultComponents = {
-	laserCharge = {Value = "", Desc = "Redstone, Laser charge interrupt (off = not charging)"}; -- Redstone (off = not charging)
-	laserReader = {Value = "", Desc = "Adapter, Laser Amplifier"}; -- Adapter attacked to laser emitter
-	laserFire = {Value = "", Desc = "Redstone, Laser firing signal (on = fire)"}; -- Redstone (on = fire)
-	reactorInterface = {Value = "", Desc = "Adapter, Reactor Logic Adapter"}; -- Adapter attached to reactor logic adapter
-	mixInjector = {Value = "", Desc = "Redstone, DT Mix injector signal (on = inject)"}; -- Redstone (on = fire)
-}
-
 FusionReactor.load = function(config)
-	if (not config.FusionComponents) then
-		config.FusionComponents = FusionReactor.defaultComponents 
-	end
-	for i,p in pairs(FusionReactor.defaultComponents) do
-		config.FusionComponents[i] = config.FusionComponents[i] or p
-	end
+	
 end
 
 FusionReactor.registerCommands = function()
@@ -28,35 +20,46 @@ FusionReactor.registerCommands = function()
 	Commands.registerCommand("stop", FusionReactor.stopFunc, "Set injection rate to zero", "")
 	Commands.registerCommand("startCharging", FusionReactor.startChargingFunc, "Enable Reactor Laser charging circuit", "")
 	Commands.registerCommand("stopCharging", FusionReactor.stopChargingFunc, "Disable Reactor Laser charging circuit", "")
-	Commands.registerCommand("setCompAddress", FusionReactor.setCompAddressFunc, "Set reactor control component addresses", "name, UUID")
-	Commands.registerCommand("listCompAddresses", FusionReactor.listComponentsFunc, "Print list of Fusion Reactor component addresses", "")
 	Commands.registerCommand("status", FusionReactor.statusFunc, "Print status of Fusion Reactor and laser assembly", "")
 	Commands.registerCommand("injectMix", FusionReactor.injectMixFunc, "Enable D-T injection directly into the reactor chamber", "[duration (defaults to 0.1)]")
 	Commands.registerCommand("stopInjectingMix", FusionReactor.stopInjectingMixFunc, "Emergency shutoff for Mix Injector", "")
 	Commands.registerCommand("autoIgnite", FusionReactor.autoIgniteFunc, "Enable or disable Automatic Ignition", "enable:disable")
 end
 
-FusionReactor.setup = function()
-	
+FusionReactor.registerSettings = function(reg)
+	reg(FusionReactor.settingsGroup, {
+		{"defaultInjectionRate", "number", 6, "The default injection rate for the reactor"};
+		{"laserCharge", "component", "null", "A Redstone I/O controlling the flow of power to the laser chain"};
+		{"laserFire", "component", "null", "A Redstone I/O connected to the last laser amplifier in the chain"};
+		{"laserReader", "component", "null", "An Adapter connected to the last laser amplifier in the chain"};
+		{"reactorInterface", "component", "null", "An Adapter connected to a Reactor Logic Adapter on the reactor"};
+		{"mixInjector", "component", "null", "A Redstone I/O controlling the flow of pre-mixed D-T fuel to the reactor"};
+		{"transposer", "component", "null", "A Transposer connected to a Reactor Port set to input"};
+		{"transposerReactorSide", "string", "bottom", "The side of the transposer connected to the reactor"};
+		{"transposerStorageSide", "string", "top", "The side of the transposer connected to Hohlraum storage"};
+		{"deuteriumTank", "component", "null", "A Transposer connected to the LIQUID Deuterium tank"};
+		{"tritiumTank", "component", "null", "A Transposer connected to the LIQUID Tritium tank"};
+		{"fuelThreshold", "number", 1, "Minimum amount of fuel required for AutoIgnite"};
+	})
 end
 
-FusionReactor.autoIngiteTick = function()
+FusionReactor.setup = function()
 	
 end
 
 FusionReactor.autoIgniteFunc = function(response, arg)
 	arg = tostring(arg or ""):lower()
 	if (arg == "enable") then
-		if (config.autoIgnite) then
+		if (Device.currentConfig.autoIgnite) then
 			response:print("Automatic Ignition already enabled")
 			response:sendFailure()
 		else
-			config.autoIgnite = true
+			Device.currentConfig.autoIgnite = true
 			response:print("Automatic Ignition enabled")
 		end
 	elseif (arg == "disable") then
-		if (config.autoIgnite) then
-			config.autoIgnite = false
+		if (Device.currentConfig.autoIgnite) then
+			Device.currentConfig.autoIgnite = false
 			response:print("Automatic Ignition disabled")
 		else
 			response:print("Automatic Ignition already disabled")
@@ -85,9 +88,18 @@ FusionReactor.igniteFunc = function(response, delay)
 	local c = FusionReactor.getComponentProxy("laserFire")
 	if (not c) then response:print("No laserFire detected") response:flush() response:sendFailure() return true end
 	local r = FusionReactor.getComponentProxy("reactorInterface")
-	if (not r) then response:print("No reactorInterface detected") response:flush() response:sendFailure() return true, response end
+	if (not r) then response:print("No reactorInterface detected") response:flush() response:sendFailure() return true end
 	delay = math.max(5,tonumber(delay) or 5)
 	response:print("Preparing to ignite reactor")
+	local fex, fth = Device.getSetting(FusionReactor.settingsGroup..".fuelThreshold")
+	fth = fex and fth or 25
+	local iex, ir = Device.getSetting(FusionReactor.settingsGroup..".defaultInjectionRate")
+	ir = iex and ir or 6
+	if (r.getInjectionRate() < 2) then r.setInjectionRate(ir) end
+	if (FusionReactor.getDeuterium()*100 < fth) or (FusionReactor.getTritium() < fth) or (not FusionReactor.hasHohlraum()) then
+		response:print("Ignition requirements not met, aborting ignition")
+		return
+	end
 	event.timer(delay, function()
 		for i=0,5 do
 			c.setOutput(i,15)
@@ -101,7 +113,7 @@ FusionReactor.igniteFunc = function(response, delay)
 		end
 	end)
 	event.timer(delay+5, function()
-		if (r.isIgnited) then
+		if (r.isIgnited()) then
 			Shell.print("Fusion Reactor has successfully ignited")
 			network.notifications.broadcast("Fusion Reactor has successfully ignited")
 		else
@@ -151,7 +163,7 @@ end
 FusionReactor.startChargingFunc = function(response)
 	local c = FusionReactor.getComponentProxy("laserCharge")
 	if (not c) then response:print("No laserCharge detected") response:flush() response:sendFailure() return true end
-	if (c.getOutput(0) > 1) then response.print("Laser charging circuit already activated") response:flush() response:sendFailure() return true end
+	if (c.getOutput(0) > 1) then response:print("Laser charging circuit already activated") response:flush() response:sendFailure() return true end
 	for i=0,5 do
 		c.setOutput(i,15)
 	end
@@ -161,7 +173,7 @@ end
 
 FusionReactor.stopChargingFunc = function(response)
 	local c = FusionReactor.getComponentProxy("laserCharge")
-	if (not c) then response.print("No laserCharge detected") response:flush() response:sendFailure() return true end
+	if (not c) then response:print("No laserCharge detected") response:flush() response:sendFailure() return true end
 	if (c.getOutput(0) < 1) then response:print("Laser charging circuit already deactivated") response:flush() response:sendFailure() return true end
 	for i=0,5 do
 		c.setOutput(i,0)
@@ -170,64 +182,108 @@ FusionReactor.stopChargingFunc = function(response)
 	return true
 end
 
-FusionReactor.setCompAddressFunc = function(response, name, address)
-	if (not name) or (not address) then return false end
-	local addressList = Device.currentConfig.FusionComponents
-	if (addressList[name]) then
-		local realAddress = component.get(address)
-		if (not realAddress) then response:print("Component does not exist") response:flush() response:sendFailure() return true end
-		addressList[name].Value = realAddress
-		response:print(name.." assigned to {"..realAddress.."}")
-	else
-		response:print("Component name incorrect")
-	end
-	Device.saveConfig()
-	return true
-end
+FusionReactor.igniteDebounce = false
 
-FusionReactor.listComponentsFunc = function(response)
-	for i,p in pairs(Device.currentConfig.FusionComponents) do
-		response:print(i.."        "..p.Desc.."  {"..p.Value.."}")
+FusionReactor.doAutoIgnite = function()
+	if (FusionReactor.igniteDebounce) then return end
+	FusionReactor.igniteDebounce = true
+	local c = FusionReactor.getComponentProxy("laserFire")
+	if (not c) then Shell.print("[AutoIgnite] No laserFire detected, aborting ignition") return end
+	local r = FusionReactor.getComponentProxy("reactorInterface")
+	if (not r) then Shell.print("No reactorInterface detected, aborting ignition") return end
+	Shell.print("[AutoIgnite] Preparing to ignite Reactor")
+	for i=0,5 do
+		c.setOutput(i,15)
 	end
-	return true
+	Shell.print("[AutoIgnite] Fusion Reactor Ignition Laser has Fired")
+	network.notifications.broadcast("Fusion Reactor Ignition Laser has Fired")
+	event.timer(0.5, function()
+		for i=0,5 do
+			c.setOutput(i,0)
+		end
+	end)
+	event.timer(3, function()
+		if (r.isIgnited()) then
+			Shell.print("[AutoIgnite] Fusion Reactor has successfully ignited")
+			network.notifications.broadcast("Fusion Reactor has successfully ignited")
+		else
+			Shell.print("[AutoIgnite] Fusion Reactor ignition has failed")
+			network.notifications.broadcast("Fusion Reactor ignition has failed")
+		end
+	end)
 end
 
 FusionReactor.statusFunc = function(response)
 	local laserCharge = FusionReactor.getComponentProxy("laserCharge")
-	if (not laserCharge) then response.print("No laserCharge detected") response:flush() response:sendFailure() return true end
+	if (not laserCharge) then response:print("No laserCharge detected") response:flush() response:sendFailure() return true end
+	local laserFire = FusionReactor.getComponentProxy("laserFire")
+	if (not laserFire) then response:print("No laserFire detected") response:flush() response:sendFailure() return true end
 	local reactor = FusionReactor.getComponentProxy("reactorInterface")
-	if (not reactor) then response.print("No reactorInterface detected") response:flush() response:sendFailure() return true end
+	if (not reactor) then response:print("No reactorInterface detected") response:flush() response:sendFailure() return true end
 	local laserReader = FusionReactor.getComponentProxy("laserReader")
-	if (not laserReader) then response.print("No laserReader detected") response:flush() response:sendFailure() return true end
-	
-	local str = ""
-	str = str.."   -- LASER --   ".."\n"
+	if (not laserReader) then response:print("No laserReader detected") response:flush() response:sendFailure() return true end
+	local transposer = FusionReactor.getComponentProxy("transposer")
+	if (not transposer) then response:print("No transposer detected") response:flush() response:sendFailure() return true end
+	local mixInjector = FusionReactor.getComponentProxy("mixInjector")
+	if (not mixInjector) then response:print("No mixInjector detected") response:flush() response:sendFailure() return true end
+	local str = "&#f00FFFF&#*- FUSION REACTOR STATUS -*\n"
+	str = str.."       -- LASER --   ".."\n"
 	local laserEnergy = math.floor(laserReader.getEnergy()/1000000)
 	local laserMaxEnergy = math.floor(laserReader.getMaxEnergy()/1000000)
-	str = str.."Stored Energy: "..laserEnergy.."MJ \n"
-	str = str.."Maximum Energy: "..laserMaxEnergy.."MJ \n"
-	str = str.."Minimum Ignition energy: 1500MJ \n"
+	str = str.."&#fFFFF00&#Stored Energy: &#f00FF00&#"..laserEnergy.."MJ \n"
+	str = str.."&#fFFFF00&#Maximum Energy: &#f00FF00&#"..laserMaxEnergy.."MJ \n"
+	str = str.."&#fFFFF00&#Minimum Ignition Energy: &#f00FF00&#1500MJ \n"
 	if (laserEnergy > 1500) then
-		str = str.."Enough energy to ignite reaction \n"
+		str = str.."&#f00FF00&#Enough energy to ignite reaction \n"
 	else
-		str = str.."Not enough energy to ignite reaction \n"
+		str = str.."&#fFF0000&#Not enough energy to ignite reaction \n"
 	end
-	str = str.."   -- REACTOR --   ".."\n"
+	str = str.."&#f00FFFF&#      -- REACTOR --   ".."\n"
 	if (reactor.isIgnited()) then
-		str = str.."      Running      "
+		str = str.."&#f00FF00&#Running\n"
 	else
-		str = str.."    Not Running    "
+		str = str.."&#fFFFF00&#Not Running&#fFFFFFF&#\n"
 	end
-	response:print(str)
+	if (FusionReactor.hasHohlraum()) then
+		str = str.."&#f00FF00&#Hohlraum is present\n"
+	else
+		str = str.."&#fFF0000&#Hohlraum is not present\n"
+	end
+	local deuteriumAmnt = FusionReactor.getDeuterium()
+	local tritiumAmnt = FusionReactor.getTritium()
+	
+	str = str.."&#fADD8E6&#Deuterium Tank: "
+	if (deuteriumAmnt > 0.5) then
+		str = str.."&#f00FF00&#"
+	elseif (deuteriumAmnt > 0.25) then
+		str = str.."&#fFFFF00&#"
+	else
+		str = str.."&#fFF0000&#"
+	end
+	str = str..tostring(deuteriumAmnt*100).."%\n"
+	
+	str = str.."&#fADD8E6&#Tritium Tank: "
+	if (tritiumAmnt > 0.5) then
+		str = str.."&#f00FF00&#"
+	elseif (tritiumAmnt > 0.25) then
+		str = str.."&#fFFFF00&#"
+	else
+		str = str.."&#fFF0000&#"
+	end
+	str = str..tostring(tritiumAmnt*100).."%\n"
+	
+	response:print(str.."&#fFFFFFF&#")
 	return true
 end
 
 FusionReactor.prevRunning = false
-
+ 
 FusionReactor.loopFunc = function()
+	local didStuff = false
 	local laserCharge = FusionReactor.getComponentProxy("laserCharge")
 	local laserReader = FusionReactor.getComponentProxy("laserReader")
 	local reactor = FusionReactor.getComponentProxy("reactorInterface")
+	local transposer = FusionReactor.getComponentProxy("transposer")
 	if (not laserCharge) or (not laserReader) or (not reactor) then return end
 	local igniteEnergy = 1500
 	local laserEnergy = math.floor(laserReader.getEnergy()/1000000)
@@ -238,35 +294,142 @@ FusionReactor.loopFunc = function()
 		Shell.print("Fusion Reactor Laser Assembly has completed charging cycle")
 		Shell.print("Laser charging circuit deactivated")
 		network.notifications.broadcast("Fusion Reactor Laser Assembly has completed charging cycle \nLaser charging circuit deactivated")
+		didStuff = true
+	end
+	if (Device.currentConfig.autoIgnite) and (not didStuff) then
+		if (laserEnergy < igniteEnergy) and (laserCharge.getOutput(0) < 1) then
+			for i=0,5 do
+				laserCharge.setOutput(i,15)
+			end
+			Shell.print("[AutoIgnite] Activated Fusion Reactor Laser Charging Circuit")
+			didStuff = true
+		end
+		if (not didStuff) then
+			if (laserEnergy >= igniteEnergy) and (not reactor.isIgnited()) then
+				local fex, fth = Device.getSetting(FusionReactor.settingsGroup..".fuelThreshold")
+				fth = fex and fth or 25
+				local iex, ir = Device.getSetting(FusionReactor.settingsGroup.."defaultInjectionRate")
+				ir = iex and ir or 6
+				if (transposer) then
+					FusionReactor.insertHohlraum()
+				end
+				if (reactor.getInjectionRate() < 2) then reactor.setInjectionRate(ir) end
+				OS.sleep(0.1)
+				if (reactor.isIgnited()) then
+					Shell.print("[AutoIgnite] Reactor re-ignited using existing heat (To turn the reactor off, disable AutoIgnite)")
+				else
+					if (FusionReactor.getDeuterium()*100 >= fth) and (FusionReactor.getTritium() >= fth) and (FusionReactor.hasHohlraum()) then
+						FusionReactor.doAutoIgnite()
+					else
+						Shell.print("[AutoIgnite] Unable to ignite Reactor, requirements not met")
+					end
+				end
+			end
+		end
 	end
 	local currRunning = reactor.isIgnited()
-	if (not currRunning) and (prevRunning) then 
+	if (not currRunning) and (FusionReactor.prevRunning) then
 		Shell.print("Fusion Reactor has deactivated")
 		network.notifications.broadcast("Fusion Reactor has deactivated")
-	else
-		prevRunning = currRunning
 	end
+	FusionReactor.prevRunning = currRunning
+end
+
+FusionReactor.getDeuterium = function() -- Returns amount of stored Deuterium as a percentage (0-1) 
+	local deuteriumTank = FusionReactor.getComponentProxy("deuteriumTank")
+	if (not deuteriumTank) then return 0 end
+	local side, tankNum = FusionReactor.getTank(deuteriumTank, FusionReactor.deuteriumLabel)
+	if (side ~= nil) then
+		local currentAmnt = deuteriumTank.getTankLevel(side, tankNum)
+		local maxAmount = deuteriumTank.getTankCapacity(side, tankNum)
+		return math.floor((currentAmnt/maxAmount)*100)/100
+	end
+	return 0
+end
+
+FusionReactor.getTritium = function() -- Returns amount of stored Tritium as a percentage (0-1) 
+	local tritiumTank = FusionReactor.getComponentProxy("tritiumTank")
+	if (not tritiumTank) then return 0 end
+	local side, tankNum = FusionReactor.getTank(tritiumTank, FusionReactor.tritiumLabel)
+	if (side ~= nil) then
+		local currentAmnt = tritiumTank.getTankLevel(side, tankNum)
+		local maxAmount = tritiumTank.getTankCapacity(side, tankNum)
+		return math.floor((currentAmnt/maxAmount)*100)/100
+	end
+	return 0
+end
+
+FusionReactor.getTank = function(proxy, fluidLabel) -- finds a tank containing the specified fluid
+	if (not proxy) or (proxy.type ~= "transposer") then return end
+	local tSide, tNum = nil,nil
+	for side=0,5 do
+		local tCount = proxy.getTankCount(side)
+		if (tCount > 0) then
+			for tank = 1,tCount do
+				local fluidDesc = proxy.getFluidInTank(side, tank)
+				if (fluidDesc) then
+					if (fluidDesc.label == fluidLabel) then
+						tSide = side
+						tNum = tank
+						break
+					end
+				end
+			end
+		end
+	end
+	return tSide, tNum
+end
+
+FusionReactor.hasHohlraum = function()
+	local transposer = FusionReactor.getComponentProxy("transposer")
+	if (not transposer) then return false end
+	local exists, rSide = Device.getSetting(FusionReactor.settingsGroup..".transposerReactorSide")
+	if (not exists) then return false end
+	local side = Enum.Side[rSide]
+	if (not side) then return false end
+	local stack = transposer.getStackInSlot(side, 1)
+	if (not stack) or (stack.label ~= FusionReactor.hohlraumLabel) then return false end
+	return true
+end
+
+FusionReactor.insertHohlraum = function()
+	local transposer = FusionReactor.getComponentProxy("transposer")
+	if (not transposer) then return false end
+	local exists, rSide = Device.getSetting(FusionReactor.settingsGroup..".transposerReactorSide")
+	local exists2, sSide = Device.getSetting(FusionReactor.settingsGroup..".transposerStorageSide")
+	if (not exists) or (not exists2) then return false end
+	local Rside = Enum.Side[rSide]
+	local Sside = Enum.Side[sSide]
+	if (not Rside) or (not Sside) then return false end
+	if (transposer.getStackInSlot(Rside, 1)) then return false end
+	if (transposer.getAllStacks(Sside).count() < 1) then return false end
+	local slotCount = transposer.getInventorySize(Sside)
+	if (slotCount) and (slotCount > 0) then
+		for i=1,slotCount do
+			local stack = transposer.getStackInSlot(Sside, i)
+			if (stack ~= nil) and (stack.label == FusionReactor.hohlraumLabel) then
+				transposer.transferItem(Sside, Rside, 1, i, 1)
+				Shell.print("Transferred Hohlraum from storage to Reactor")
+				break
+			end
+		end
+	end
+	return false
 end
 
 FusionReactor.getComponent = function(name)
-	local addressList = Device.currentConfig.FusionComponents
-	if (addressList[name]) then
-		return addressList[name].Value
-	end
+	local exists, value = Device.getSetting(FusionReactor.settingsGroup.."."..name)
+	if (exists) then return value end
 end
 
 FusionReactor.getComponentProxy = function(name)
-	local addressList = Device.currentConfig.FusionComponents
-	if (addressList[name]) then
-		return component.proxy(addressList[name].Value)
-	end
+	local exists, value = Device.getSetting(FusionReactor.settingsGroup.."."..name)
+	if (exists) then return component.proxy(value) end
 end
 
 FusionReactor.powerOff = function()
 	
 end
-
-
 
 
 

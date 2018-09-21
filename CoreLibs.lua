@@ -1084,6 +1084,8 @@ function getColor(str)
 end
 
 function print(str)
+	component.gpu.setForeground(getColor("fFFFFFF")) -- Reset color before every new print
+	component.gpu.setBackground(getColor("f000000"))
 	if (not str) then term.write("\n") return end
 	prints(str.."\n")
 end

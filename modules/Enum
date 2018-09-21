@@ -51,6 +51,13 @@ Enum.ResType.BUSY = "bsy"
 
 -------------------------------------------------------------------------------
 
+Enum.Event = {}
+Enum.Event.WRAPPEDNETWORKSIGNAL = "WrappedNetworkSignal"
+Enum.Event.FTPFILERECEIVED = "FTPFileReceived"
+Enum.Event.SETTINGUPDATED = "DEVICESETTINGUPDATED"
+
+-------------------------------------------------------------------------------
+
 Enum.Side = {
   [0] = "bottom",
   [1] = "top",

@@ -186,7 +186,12 @@ end
 
 Packager.writeFile = function(proxy, path, str)
 	local handle = proxy.open(path, "w")
-	if (not handle) then print("Unable to create file "..path) end
+	if (not handle) then print("Unable to create file "..path) return end
+	while (str:len() > 500) do
+		proxy.write(handle, str:sub(1,500))
+		str = str:sub(501)
+		OS.sleep(0.01)
+	end
 	proxy.write(handle, str)
 end
 
