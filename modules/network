@@ -22,6 +22,7 @@ network.sendPacket = function(port, packet, wireless)
 	if (modem.isWireless()) then if (wireless) then modem.setStrength(100000) else modem.setStrength(0) end end
 	local packetStr = network.formatPacket(packet, port)
 	network.sendToLinkedCards(packetStr)
+	--Shell.print(packetStr)
 	return modem.broadcast(port, packetStr)
 end
 
@@ -200,13 +201,13 @@ network.registerPingListener = function()
 end
 
 network.wrappedNetworkSignalGenerator = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
+	--print("REC: ")
 	if (not port) then return end
 	if (not inpkt) or (type(inpkt) ~= "string") then return end
 	local packet = serialization.unserialize(inpkt)
 	if (not packet) then return end
 	if (not packet.Header) or (not packet.Sender) or (not packet.Receiver) then return end
 	if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
-	--print(inpkt)
 	computer.pushSignal(Enum.Event.WRAPPEDNETWORKSIGNAL, localNetworkCard, remoteAddress, port, distance, packet)
 end
 
@@ -220,11 +221,13 @@ end
 
 network.portInit = function()
 	for i,p in pairs(Enum.Port) do
-		local success = network.openPort(p)
-		if (success) then
-			print("Opened "..i.." Port ("..p..")")
-		else
-			print("Unable to open "..i.." Port ("..p..")")
+		if (p > 0 and p <= 65535) then
+			local success = network.openPort(p)
+			if (success) then
+				--print("Opened "..i.." Port ("..p..")")
+			else
+				print("Unable to open "..i.." Port ("..p..")")
+			end
 		end
 	end
 end

@@ -6,7 +6,7 @@ FusionReactor.tritiumLabel = "Liquid Tritium"
 FusionReactor.settingsGroup = "FusionReactor"
 
 FusionReactor.init = function()
-	event.timer(5, FusionReactor.loopFunc, math.huge)
+	event.timer(10, FusionReactor.loopFunc, math.huge)
 	network.registerPingListener()
 end
 
@@ -277,7 +277,9 @@ FusionReactor.statusFunc = function(response)
 end
 
 FusionReactor.prevRunning = false
- 
+
+FusionReactor.autoIgniteDelay = 0
+
 FusionReactor.loopFunc = function()
 	local didStuff = false
 	local laserCharge = FusionReactor.getComponentProxy("laserCharge")
@@ -296,7 +298,9 @@ FusionReactor.loopFunc = function()
 		network.notifications.broadcast("Fusion Reactor Laser Assembly has completed charging cycle \nLaser charging circuit deactivated")
 		didStuff = true
 	end
-	if (Device.currentConfig.autoIgnite) and (not didStuff) then
+	OS.sleep(0.05)
+	FusionReactor.autoIgniteDelay = (FusionReactor.autoIgniteDelay <= 0) and 0 or FusionReactor.autoIgniteDelay - 10
+	if (Device.currentConfig.autoIgnite) and (not didStuff) and (FusionReactor.autoIgniteDelay <= 0) then
 		if (laserEnergy < igniteEnergy) and (laserCharge.getOutput(0) < 1) then
 			for i=0,5 do
 				laserCharge.setOutput(i,15)
@@ -321,7 +325,8 @@ FusionReactor.loopFunc = function()
 					if (FusionReactor.getDeuterium()*100 >= fth) and (FusionReactor.getTritium() >= fth) and (FusionReactor.hasHohlraum()) then
 						FusionReactor.doAutoIgnite()
 					else
-						Shell.print("[AutoIgnite] Unable to ignite Reactor, requirements not met")
+						FusionReactor.autoIgniteDelay = 30
+						Shell.print("[AutoIgnite] Unable to ignite Reactor, requirements not met (retry in 30 seconds)")
 					end
 				end
 			end

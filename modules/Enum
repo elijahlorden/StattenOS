@@ -32,6 +32,7 @@ Enum.Header.Gate = {
 
 Enum.Port = {}
 
+Enum.Port.Tunnel = 0
 Enum.Port.General = 6000
 Enum.Port.Command = 5000
 Enum.Port.CommandResponse = 50001
@@ -40,6 +41,7 @@ Enum.Port.Keepalive = 5003
 Enum.Port.Stargate = 5006
 Enum.Port.StargateResponse = 5007
 Enum.Port.Notifications = 5008
+Enum.Port.SpatialTransfer = 5009
 
 Enum.ResType = {}
 Enum.ResType.ACK = "ack"
@@ -52,9 +54,16 @@ Enum.ResType.BUSY = "bsy"
 -------------------------------------------------------------------------------
 
 Enum.Event = {}
+Enum.Event.OSLOADED = "STATTENOSLOADED"
 Enum.Event.WRAPPEDNETWORKSIGNAL = "WrappedNetworkSignal"
 Enum.Event.FTPFILERECEIVED = "FTPFileReceived"
 Enum.Event.SETTINGUPDATED = "DEVICESETTINGUPDATED"
+
+-------------------------------------------------------------------------------
+-- Unmanaged disk type headers
+
+Enum.DiskType = {}
+Enum.DiskType.User = 0
 
 -------------------------------------------------------------------------------
 

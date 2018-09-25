@@ -1,1 +1,1 @@
-{Driver="Server",Name="Server",GateRegistry={}}
+{GateRegistry={},Settings={["Device.Test"]={Group="Device",Subtype="component",Desc="No description provided",Value="null",Type="string",Default="null"}},Name="Server",Driver="Server"}

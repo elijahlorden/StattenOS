@@ -291,17 +291,12 @@ print()
 
 doInit() -- Initalize modules
 
-local sec = 0
-local memSec = 0
+computer.pushSignal(Enum.Event.OSLOADED)
+
 while true do
-	OS.sleep(0.01)
-	sec = sec + 0.01
-	memSec = memSec + 0.01
-	if (sec > 1) then sec = 0 end
-	if (memSec > 1) then
-		table.insert(OS.memAverages, computer.freeMemory())
-		if (#OS.memAverages > 20) then table.remove(OS.memAverages, 1) end
-	end
+	OS.sleep(1)
+	table.insert(OS.memAverages, computer.freeMemory())
+	if (#OS.memAverages > 5) then table.remove(OS.memAverages, 1) end
 end
 
 

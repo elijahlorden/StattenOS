@@ -9,7 +9,7 @@ Device.driverList = {
 
 Device.miniAppList = {
 	LRelay = {Name = "LRelay", desc = "Relay program for linked cards", file = "LinkedRelay"};
-	GCont = {Name = "GCont", desc = "Used to control Stargates which are not connected to a full StattenOS network", file = "GateController"};
+	GateCon = {Name = "GateCon", desc = "Used to control Stargates which are not connected to a full StattenOS network", file = "GateController"};
 }
 
 Device.currentConfig = {

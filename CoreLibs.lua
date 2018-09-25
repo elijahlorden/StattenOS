@@ -631,6 +631,118 @@ function fs_code()
 	return l
   end
   
+  -- Unmanaged drive support (Unmanaged drives are used for specific tasks, not for general file storage)
+  
+	fs.uDrive = {}
+	fs.uDrive.map = {}
+	fs.uDrive.formats = {} -- this is where disk formats are registered for ease of reading/writing
+	--[[
+	EXAMPLE DISK FORMAT
+	fs.uDrive.formats["0"] = { -- The positions and bitlengths for the User disks. The key MUST be the DiskType header integer associated with that format
+		[1] = {"dskType", 1}; -- This offset of one is REQUIRED (if it is not present, the disk type may get overwritten)
+		[2] = {"id", 32}; -- {label, length}
+		[3] = {"c0", 16};
+		[4] = {"c1", 16};
+	}	
+	--]]
+	
+	fs.uDrive.mapDrive = function(address) -- Unmanaged drives are mapped to a number rather than a letter
+		address = component.get(address)
+		local proxy = component.proxy(address)
+		if (not proxy) or (proxy.type ~= "drive") then return end
+		for i,p in pairs(fs.uDrive.map) do if (p.address == address) then return end end
+		local dn = 0
+		local continue
+		repeat
+			continue = false
+			for i,p in pairs(fs.uDrive.map) do
+				if (p.id == dn) then continue = true dn = dn + 1 end
+			end
+		until (not continue)
+		table.insert(fs.uDrive.map, {id = dn, address = address, type = fs.uDrive.getDriveType(address)})
+		return dn
+	end
+	
+	fs.uDrive.unmapDrive = function(address)
+		for i,p in pairs(fs.uDrive.map) do
+			if (p.address == address) then
+				local id = p.id
+				fs.uDrive.map[i] = nil
+				return id
+			end
+		end
+	end
+	
+	fs.uDrive.getByID = function(id)
+		for i,p in pairs(fs.uDrive.map) do
+			if (p.id == id) then return fs.uDrive.map[i] end
+		end
+	end
+	
+	fs.uDrive.getByAddress = function(address)
+		for i,p in pairs(fs.uDrive.map) do
+			if (p.address == address) then return fs.uDrive.map[i] end
+		end
+	end
+	
+	fs.uDrive.getDriveType = function(address) -- The type is a single 8-bit integer stored in the first byte of the drive
+		local proxy = component.proxy(address)
+		if (not proxy) or (proxy.type ~= "drive") then return end
+		return proxy.readByte(0)
+	end
+	
+	fs.uDrive.getFormatForType = function(n)
+		return fs.uDrive.formats[tostring(n)]
+	end
+	
+	fs.uDrive.getLabelInfo = function(f,l) -- returns offset,length (or nil if the label does not exist)
+		local i = 1
+		local offset = 0
+		for i=1,#f do
+			local p = f[i]
+			if (p[1] == label) then return offset, p[2] end
+			offset = offset + p[2]
+		end
+		return nil,nil
+	end
+	
+	fs.uDrive.getCharNum = function(c, charset)
+		if (not c) then return 0 end
+		if (not charset) then return c:byte() end
+		local k,_ = charset:find(c)
+		return k or 0
+	end
+	
+	fs.uDrive.writeLabelString = function(drive, label, data, charset)
+		local proxy = component.proxy(drive.address)
+		if (not proxy) then return end
+		if (not data) or (not label) then return end
+		data = tostring(data)
+		local f = fs.uDrive.getFormatForType(drive.type)
+		if (not f) then return end
+		local o,l = getLabelInfo(f,label)
+		
+		
+		
+		
+		
+		
+		
+		
+	end
+	
+	fs.uDrive.readLabelString = function(drive, label, charset)
+		
+	end
+	
+	fs.uDrive.writeLabelNum = function(drive, label, data)
+		
+	end
+	
+	fs.uDrive.readLabelNum = function(drive, label)
+		
+	end
+  
   --handle inserted and removed filesystems
   local function onComponentAdded(_, address, componentType)
     if componentType == "filesystem" then
@@ -641,6 +753,13 @@ function fs_code()
 			else
 				print("New drive detected, assigned to "..letter)
 			end
+		end
+		elseif componentType == "drive" then
+		local id = fs.uDrive.mapDrive(address)
+		if (Shell) then
+			Shell.print("New unmanaged drive detected, assigned to "..id)
+		else
+			print("New unmanaged drive detected, assigned to "..id)
 		end
     end
   end
@@ -655,6 +774,15 @@ function fs_code()
 		end
 	  end
       fs.drive.mapAddress(letter, nil)
+	  elseif componentType == "drive" then
+	   local id = fs.uDrive.unmapDrive(address)
+	   if (id) then
+		if (Shell) then
+			Shell.print("Unmanaged Drive "..id.." removed")
+		else
+			print("Unmanaged Drive "..id.." removed")
+		end
+	   end
     end
   end
   event.listen("component_added", onComponentAdded)
@@ -1084,6 +1212,7 @@ function getColor(str)
 end
 
 function print(str)
+	str = (str) and tostring(str) or nil
 	component.gpu.setForeground(getColor("fFFFFFF")) -- Reset color before every new print
 	component.gpu.setBackground(getColor("f000000"))
 	if (not str) then term.write("\n") return end

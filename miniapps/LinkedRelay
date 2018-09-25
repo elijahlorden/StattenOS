@@ -41,6 +41,7 @@ term = terminal_code()
 
 network = dofile("network")
 serialization = dofile("serialization")
+Enum = dofile("Enum")
 
 event_code, component_code, text_code, fs_code, terminal_code = nil, nil, nil, nil, nil
 
@@ -52,7 +53,6 @@ if term.isAvailable() then
   component.gpu.setBackground(0x000000)
   component.gpu.setForeground(0xFFFFFF)
   term.setCursorBlink(true)
-  term.clear()
 end
 
 network.portInit()

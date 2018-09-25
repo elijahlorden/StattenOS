@@ -154,10 +154,6 @@ Tablet.setup = function()
 
 end
 
-Tablet.sendKeepalive = function()
-	network.sendKeepalivePacket()
-end
-
 Tablet.powerOff = function()
 
 end

@@ -8,10 +8,19 @@ Server.pingTimeout = 10
 Server.connectBeep = 1500
 Server.disconnectBeep = 300
 
+--[[
+	USER SECURITY PROTOCOL
+	Server keeps a recond of all users and access groups on its local disk, in a file separate from its main configuration file
+	Each user entry consists of an access group name and an OTC generator key
+--]]
+
 Server.init = function()
 	Server.pingDevices()
 	event.timer(40, Server.pingDevices, math.huge)
 	network.registerNetworkListener(Server.networkListener)
+	--event.listen("component_added", Server.diskAddedEvent)
+	--event.listen("component_removed", onComponentRemoved)
+	Security.serverInit()
 end
 
 Server.load = function(config)
@@ -131,7 +140,6 @@ Server.pingDevices = function()
 		p.Pinged = false
 	end
 	--Shell.print("Pinging network...")
-
 	event.timer(Server.pingTimeout, function()
 		for i,p in pairs(Server.deviceList) do
 			if (not p.Pinged) and (p.Name ~= network.acceptedServerName) then
