@@ -15,7 +15,6 @@ function OS.sleep(timeout)
 end
 
 function OS.uuid()
-	math.randomseed(computer.uptime())
 	local s = ""
 	for i=1,8 do local n = math.random(1,OS.chars:len()) s = s..(OS.chars:sub(n,n)) end
 	s = s.."-"

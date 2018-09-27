@@ -638,12 +638,12 @@ function fs_code()
 	fs.uDrive.formats = {} -- this is where disk formats are registered for ease of reading/writing
 	--[[
 	EXAMPLE DISK FORMAT
-	fs.uDrive.formats["0"] = { -- The positions and bitlengths for the User disks. The key MUST be the DiskType header integer associated with that format
-		[1] = {"dskType", 1}; -- This offset of one is REQUIRED (if it is not present, the disk type may get overwritten)
-		[2] = {"id", 32}; -- {label, length}
-		[3] = {"c0", 16};
-		[4] = {"c1", 16};
-	}	
+	Security.diskFormat = {
+		[1] = {"id", 32, "string"};
+		[2] = {"name", 32, "string"};
+		[3] = {"c0", 16, "string"};
+		[4] = {"c1", 16, "string"};
+	}
 	--]]
 	
 	fs.uDrive.mapDrive = function(address) -- Unmanaged drives are mapped to a number rather than a letter
@@ -687,8 +687,15 @@ function fs_code()
 	
 	fs.uDrive.getDriveType = function(address) -- The type is a single 8-bit integer stored in the first byte of the drive
 		local proxy = component.proxy(address)
+		if (not proxy) or (proxy.type ~= "drive") then return 0 end
+		return proxy.readByte(1)
+	end
+	
+	fs.uDrive.setDriveType = function(address,n)
+		local proxy = component.proxy(address)
 		if (not proxy) or (proxy.type ~= "drive") then return end
-		return proxy.readByte(0)
+		proxy.writeByte(1,n)
+		return true
 	end
 	
 	fs.uDrive.getFormatForType = function(n)
@@ -697,50 +704,104 @@ function fs_code()
 	
 	fs.uDrive.getLabelInfo = function(f,l) -- returns offset,length (or nil if the label does not exist)
 		local i = 1
-		local offset = 0
+		local o = 2 -- Add 1 to initial offset to account for the 1-byte type header
 		for i=1,#f do
 			local p = f[i]
-			if (p[1] == label) then return offset, p[2] end
-			offset = offset + p[2]
+			if (p[1] == l) then return o, p[2] end
+			o = o + p[2]
 		end
 		return nil,nil
 	end
 	
-	fs.uDrive.getCharNum = function(c, charset)
+	fs.uDrive.charNum = function(c)
 		if (not c) then return 0 end
-		if (not charset) then return c:byte() end
-		local k,_ = charset:find(c)
-		return k or 0
+		return c:byte() or 0
 	end
 	
-	fs.uDrive.writeLabelString = function(drive, label, data, charset)
+	fs.uDrive.numChar = function(n)
+		if (not tonumber(n)) then return "" end
+		return string.char(n)
+	end
+	
+	fs.uDrive.writeLabelString = function(drive, label, data, f)
 		local proxy = component.proxy(drive.address)
-		if (not proxy) then return end
-		if (not data) or (not label) then return end
+		if (not label) or (not data) or (not label) then return false end
 		data = tostring(data)
-		local f = fs.uDrive.getFormatForType(drive.type)
-		if (not f) then return end
-		local o,l = getLabelInfo(f,label)
-		
-		
-		
-		
-		
-		
-		
-		
+		local o,l = fs.uDrive.getLabelInfo(f,label)
+		if (not o) or (not l) or (l == 0) or (o == 0) then return false end
+		if (data:len() > l) then data = data:sub(l,l) end
+		for i=0,l-1 do
+			local ch = (i+1 <= data:len()) and data:sub(i+1,i+1) or ""
+			proxy.writeByte(o+i, fs.uDrive.charNum(ch))
+		end
+		return true
 	end
 	
-	fs.uDrive.readLabelString = function(drive, label, charset)
-		
+	fs.uDrive.readLabelString = function(drive, label, f)
+		local proxy = component.proxy(drive.address)
+		if (not proxy) or (not label) then return false end
+		local o,l = fs.uDrive.getLabelInfo(f,label)
+		if (not o) or (not l) or (l == 0) or (o == 0) then return false end
+		local data = ""
+		for i=0,l-1 do
+			data = data..fs.uDrive.numChar(proxy.readByte(o+i))
+		end
+		return data
 	end
 	
-	fs.uDrive.writeLabelNum = function(drive, label, data)
-		
+	fs.uDrive.encodeNumber = function(n)
+		local s = (n < 0) and "-" or "+"
+		n = math.abs(n)
+		for i=7,31,8 do
+			local b = bit32.extract(n,i-7,8)
+			s = s..fs.uDrive.numChar(b)
+		end
+		return s
 	end
 	
-	fs.uDrive.readLabelNum = function(drive, label)
-		
+	fs.uDrive.decodeNumber = function(s)
+		if (s:len() ~= 5) then return 0 end
+		local sign = s:sub(1,1)
+		s = s:sub(2)
+		local n = 0
+		local currBit = 8
+		for i=1,4 do
+			local b = fs.uDrive.charNum(s:sub(i,i))
+			n = bit32.replace(n, b, currBit-8,8)
+			currBit = currBit + 8
+		end
+		return (sign == "+") and n or -n
+	end
+	
+	fs.uDrive.write = function(drive, tData, fo)
+		local tDrive = fs.uDrive.getByAddress(drive) or fs.uDrive.getByID(drive)
+		if (not tDrive) then return false end
+		if (fo) then fs.uDrive.setDriveType(tDrive.address, fo) end
+		local f = fs.uDrive.formats[tostring(fo or tDrive.type)]
+		if (not f) then return false end
+		for _,ld in pairs(f) do
+			if (tData[ld[1]]) then
+				local d = tData[ld[1]]
+				if (ld[3]) and (ld[3] == "number") then d = fs.uDrive.encodeNumber(d) end
+				if (not fs.uDrive.writeLabelString(tDrive, ld[1], d, f)) then return false end -- Write string if string
+			end
+		end
+		return true
+	end
+	
+	fs.uDrive.read = function(drive)
+		local tDrive = fs.uDrive.getByAddress(drive) or fs.uDrive.getByID(drive)
+		if (not tDrive) then return nil end
+		local fo = fs.uDrive.getDriveType(tDrive.address)
+		local f = fs.uDrive.formats[tostring(fo)]
+		if (not f) then return nil end
+		local tbl = {}
+		for _,ld in pairs(f) do
+			local data = fs.uDrive.readLabelString(tDrive, ld[1], f)
+			if (ld[3]) and (ld[3] == "number") then data = fs.uDrive.decodeNumber(data) end
+			tbl[ld[1]] = data
+		end
+		return tbl
 	end
   
   --handle inserted and removed filesystems
@@ -756,10 +817,13 @@ function fs_code()
 		end
 		elseif componentType == "drive" then
 		local id = fs.uDrive.mapDrive(address)
-		if (Shell) then
-			Shell.print("New unmanaged drive detected, assigned to "..id)
-		else
-			print("New unmanaged drive detected, assigned to "..id)
+		if (id) then
+			if (Shell) then
+				Shell.print("New unmanaged drive detected, assigned to "..id)
+			else
+				print("New unmanaged drive detected, assigned to "..id)
+			end
+			computer.pushSignal("UNMANAGEDDRIVEINSERTED", address)
 		end
     end
   end
@@ -782,6 +846,7 @@ function fs_code()
 		else
 			print("Unmanaged Drive "..id.." removed")
 		end
+		computer.pushSignal("UMANAGEDDRIVEREMOVED", address)
 	   end
     end
   end

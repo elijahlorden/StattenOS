@@ -13,7 +13,10 @@ Enum.Header = {
 	COMMANDRESPONSE = "CDRES",
     FILETRANSFERDATA = "FTFD",
     FILETRANSFERCOMPLETE = "FTFC",
-
+	RSTLOCALDEVICELIST = "RLDL",
+	SERVERDEVICELIST = "DVLP",
+	NEWDEVICE = "NWDVC",
+	DEVICEDISCONNECT = "DVDCN",
 }
 
 Enum.Header.Gate = {
@@ -42,6 +45,7 @@ Enum.Port.Stargate = 5006
 Enum.Port.StargateResponse = 5007
 Enum.Port.Notifications = 5008
 Enum.Port.SpatialTransfer = 5009
+Enum.Port.ServerInfo = 5010
 
 Enum.ResType = {}
 Enum.ResType.ACK = "ack"
@@ -56,8 +60,11 @@ Enum.ResType.BUSY = "bsy"
 Enum.Event = {}
 Enum.Event.OSLOADED = "STATTENOSLOADED"
 Enum.Event.WRAPPEDNETWORKSIGNAL = "WrappedNetworkSignal"
+Enum.Event.UNAUTHNETWORKSIGNAL = "UnauthorizedNetworkSignal"
 Enum.Event.FTPFILERECEIVED = "FTPFileReceived"
 Enum.Event.SETTINGUPDATED = "DEVICESETTINGUPDATED"
+Enum.Event.UDRIVEADD = "UNMANAGEDDRIVEINSERTED"
+Enum.Event.UDRIVEREMOVE = "UMANAGEDDRIVEREMOVED"
 
 -------------------------------------------------------------------------------
 -- Unmanaged disk type headers

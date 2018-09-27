@@ -305,6 +305,41 @@ end
 
 Commands.registerCommand("updateFromFile", updateFromFileFunc, "Update local installation from file", "Path (absolute)")
 
+local setServerAddressFunc = function(response, address)
+	if (not address) then return false end
+	address = tostring(address)
+	Device.currentConfig.ServerAddress = address
+	Device.saveConfig()
+	response:print("Server addres set")
+	return true
+end
+
+Commands.registerCommand("setServerAddress", setServerAddressFunc, "Set the address of the central server", "Address")
+
+local listDeviceCmd = function(response, typeFilter)
+	local filter = typeFilter or ""
+	local str = ""
+	local list = (Device.currentConfig.Driver == "Server") and Device.Driver.deviceList or network.deviceList
+	response:print("Format: &#fFFA500&#{DeviceName : DeviceType}&#fFFFFFF&#")
+	for i,p in pairs(list) do
+		if (string.find(p.Type, filter)) then
+			str = str.."{"..p.Name.." : "..p.Type.."} "
+		end
+	end
+	response:print("&#fFFA500&#"..str.."&#fFFFFFF&#")
+	response:flush()
+	return true
+end
+
+Commands.registerCommand("listDevices", listDeviceCmd , "Lists currently connected devices, add TypeFilter to filter devices by type", "[TypeFilter]")
+	
+
+
+
+
+
+
+
 
 
 
