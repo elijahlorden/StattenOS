@@ -201,7 +201,7 @@ network.serverUpdateListener = function(_, localNetworkCard, remoteAddress, port
 		network.deviceList = {}
 	elseif (packet.Header == Enum.Header.SERVERDEVICELIST) then -- Add devices to local device list
 		if (not packet.List) or (#mapToKeyPair(packet.List) < 1) then return end
-		for i,p in pairs(packet.List) do print(i) network.deviceList[i] = p end
+		--for i,p in pairs(packet.List) do print(i) network.deviceList[i] = p end
 	elseif (packet.Header == Enum.Header.NEWDEVICE) then -- Add a device to local device list
 		if (not packet.NewDevice) then return end
 		network.deviceList[packet.NewDevice.Name] = packet.NewDevice

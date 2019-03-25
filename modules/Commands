@@ -164,7 +164,7 @@ end
 
 Commands.registerCommand("setDeviceDriver", deviceDriverFunc, "Sets driver of local device", "driverName")
 
-Commands.registerCommand("listDeviceDrivers", function(res) for i,p in pairs(Device.driverList) do print(i.." -- "..p.desc) res.print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
+Commands.registerCommand("listDeviceDrivers", function(res) for i,p in pairs(Device.driverList) do res:print(i.." -- "..p.desc) end return true, res end, "List available device drivers", "")
 
 Commands.registerCommand("memory", function(res) res:print(OS.memoryMsgStr()) res:flush() return true end, "Displays memory status", "")
 
