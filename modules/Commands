@@ -173,31 +173,14 @@ Commands.registerCommand("energy", function(res) res:print(OS.powerMsgStr()) res
 Commands.registerCommand("shutdown", function(res) res:print("Shutting Downn") res:flush() res:sendSuccess() OS.sleep(1) network.sendShutdownPacket() Device.saveConfig() if (Device.Driver) then Device.Driver.powerOff() end computer.shutdown() return true end, "Soft poweroff", "")
 
 local rebootCommand = function(response)
-	if (Device.updatePackage ~= nil) then
-		response:print("Update package present, installation process beginning")
-		response:print("Do NOT power off the machine during the update process.")
-		response:print("If the machine is powered off during the update process, it will no longer function correctly.")
-		response:print("Commencing update...")
-		OS.sleep(1)
-		Packager.installUpdatePackage(Device.updatePackage)
-		response:print("Rebooting")
-		response:flush()
-		response:sendSuccess()
-		OS.sleep(3)
-		network.sendShutdownPacket()
-		Device.saveConfig()
-		if (Device.Driver) then Device.Driver.powerOff() end
-		computer.shutdown(true)
-	else
-		response:print("Rebooting")
-		response:flush()
-		response:sendSuccess()
-		OS.sleep(1)
-		network.sendShutdownPacket()
-		Device.saveConfig()
-		if (Device.Driver) then Device.Driver.powerOff() end
-		computer.shutdown(true)
-	end
+	response:print("Rebooting")
+	response:flush()
+	response:sendSuccess()
+	OS.sleep(1)
+	if (Device.Driver ~= "Server") then network.sendShutdownPacket() end -- Causes issues if the server sends this
+	Device.saveConfig()
+	if (Device.Driver) then Device.Driver.powerOff() end
+	computer.shutdown(true)
 end
 
 Commands.registerCommand("reboot", rebootCommand, "Soft reboot, will install update package if available", "")
@@ -226,8 +209,8 @@ local installFunc = function(response, driveLetter) -- INSTALL TO DRIVE
 	local driveLetter = tostring(driveLetter):sub(1,1):upper() or ""
 	if (not driveLetter) or (driveLetter == "") or (driveLetter == " ") then return false end
 	response:print("Attempting to install OS on drive "..driveLetter)
-	local success = Packager.installToDrive(driveLetter)
-	if (success) then response:print("Installation successful") response:flush() else response:print("Installation Failed") response:flush() response:sendSuccess() end
+	local success, reason = Packager.installToDrive(driveLetter)
+	if (success) then response:print("Installation successful") response:flush() else response:print("Installation Failed: "..reason) response:flush() response:sendSuccess() end
 	return true
 end
 
@@ -286,25 +269,6 @@ end
 
 Commands.registerCommand("listComponentMethods", listComponentMethodsFunc, "List methods for component", "UUID (can be partial)")
 
-local updateFromFileFunc = function(response, path) -- Update OS from packaged installData file
-	if (not path) then return false end
-	local proxy = fs.drive.letterToProxy(path:sub(1,1):upper() or "")
-	if (not proxy) then response:print("Drive does not exist") response:flush() response:sendFailure() return true end
-	local success = Packager.installUpdateFromDrive(path)
-	if (success) then
-		Device.updatePackage = nil
-		response:print("Update completed")
-		response:flush()
-	else
-		response:print("Update failed")
-		response:flush()
-		response:sendFailure()
-	end
-	return true
-end
-
-Commands.registerCommand("updateFromFile", updateFromFileFunc, "Update local installation from file", "Path (absolute)")
-
 local setServerAddressFunc = function(response, address)
 	if (not address) then return false end
 	address = tostring(address)
@@ -333,10 +297,25 @@ end
 
 Commands.registerCommand("listDevices", listDeviceCmd , "Lists currently connected devices, add TypeFilter to filter devices by type", "[TypeFilter]")
 	
+local testCmd = function(response)
+	local stream = network.stream.openStream("CrystalFarm", "test", "Test Stream")
+	while (stream.status == Enum.Stream.Opening) do OS.sleep(0.1) end
+	if (stream.status ~= Enum.Stream.Idle) then response:print("Error creating stream: "..stream.reason) return end
+	response:print("Sending packet")
+	OS.sleep(5)
+	stream:send{"This is a test"}
+	while (stream.status == Enum.Stream.Streaming) do OS.sleep(0.1) end
+	if (stream.status ~= Enum.Stream.Idle) then response:print("Stream error: "..stream.reason) return end
+	response:print("Sending another packet")
+	stream:send{"This is another test"}
+	while (stream.status == Enum.Stream.Streaming) do OS.sleep(0.1) end
+	if (stream.status ~= Enum.Stream.Idle) then response:print("Stream error: "..stream.reason) return end
+	response:print("Packets dispatched")
+	stream:close()
+	return true
+end
 
-
-
-
+Commands.registerCommand("test", testCmd , "Stream testing", "")
 
 
 

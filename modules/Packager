@@ -1,153 +1,33 @@
 local Packager = {}
 
-Packager.devKey = "b135baaf9837ed1ec7bcb629eaf1adbc"
-Packager.loggedUsr = "elijahlorden"
-Packager.loggedPss = "elijah24680"
-
-Packager.installProgPart1 = [[
-computer = require("computer")
-event = require("event")
-function JSONLib()
-
-]]
-
-Packager.installProgPart2 = [[
-
-end
-OS = {}
-function OS.sleep(timeout)
-	checkArg(1, timeout, "number", "nil")
-	local deadline = computer.uptime() + (timeout or 0)
-	repeat
-		event.pull(deadline - computer.uptime())
-	until computer.uptime() >= deadline
-end
-
-function installOS(path, packagedOS)
-	for i,p in pairs(packagedOS.Directories) do
-		fs.makeDirectory(p)
-	end
-	for i,p in pairs(packagedOS) do
-		if (i ~= "Directories") then
-			for fn,f in pairs(p) do -- path,data
-				print("Installing "..fn)
-				if (type(f):lower() == "string") then
-					local file = io.open(fn, "w")
-					file:write(f)
-					file:close()
-				end
-			end
-		end
-	end
-	
-	
-	
-end
-
-filesystem = require("filesystem")
-io = require("io")
-
-function installOS(packagedOS)
-	for i,p in pairs(packagedOS.Directories) do
-		filesystem.makeDirectory(p)
-	end
-	for i,p in pairs(packagedOS) do
-		if (i ~= "Directories") then
-			for fn,f in pairs(p) do -- path,data
-				print("Installing "..fn)
-				if (type(f):lower() == "string") then
-					local file, reason = io.open("/"..fn, "w")
-					if (not file) then print(reason) end
-					file:write(f)
-					file:close()
-				end
-			end
-		end
-	end
-end
-
-function wipe()
-	for f in filesystem.list("/") do
-		if (f:sub(f:len(), f:len()) == "/") then f = f:sub(0,f:len()-1) end
-		filesystem.remove(f)
-		print("Deleting "..f)
-	end
-end
-
-print("StattenOS Installer")
-local JSON = JSONLib()
-local file = io.open("/InstallData")
-local InstallData = file:read("*a")
-file:close()
-print("InstallData read into memory, decoding...")
-local OSTable = JSON.decode(InstallData)
-print("Decoded, procedding with install")
-print("wiping drive from root directory")
-wipe()
-print("wipe, complete, installing...")
-installOS(OSTable)
-print("Install complete.")
-]]
-
-
-Packager.assembleInstallFiles = function()
-	local OSproxy = fs.drive.letterToProxy("A")
-	local str = Packager.installProgPart1
-	local packagedOS = Packager.packageIntoTable()
-	OS.sleep(0.1)
-	local serializedOS = JSON.encode(packagedOS)
-	OS.sleep(0.1)
-	local JSONModule = Packager.getFileString("/modules/JSON")
-	str = str..JSONModule
-	str = str..Packager.installProgPart2
-	return str, serializedOS
-end
-
-Packager.packageIntoTable = function()
-	local tbl = {Directories = {}}
-	print("Packaging OS...")
-	Packager.processFolder("/", tbl)
-	print("OS packaged")
-	return tbl
-end
-
-Packager.processFolder = function(path, tbl)
-	table.insert(tbl.Directories, path)
-	local folderItems = {}
-	local list = filesystem.list(path)
-	for f in list do
-		OS.sleep(0.05)
-		if (filesystem.isDirectory(f)) and (not f:find("tmp")) then
-			Packager.processFolder(path..f, tbl)
-		elseif (not filesystem.isDirectory(f)) then
-			if (f ~= "config") then
-				print("Packaging "..path..f)
-				local str = Packager.getFileString(path..f)
-				folderItems[path..f] = str
-			end
-		end
-	end
-	table.insert(tbl, folderItems)
-end
-
-Packager.getFileString = function(path, proxy)
+Packager.readWholeFile = function(path, proxy)
 	if (not proxy) then proxy = filesystem end
 	local handle, reason = proxy.open(path)
 	if (not handle) then
-		print("Unable to read file "..path.."("..reason..")")
-		return
+		return false, "Unable to read file "..path.."("..reason..")"
 	end
 	local buffer = ""
 	repeat
 	local data, reason = proxy.read(handle, math.huge)
 	if (not data) and (reason) then
-		print("Unable to read file "..path.."("..reason..")")
-		return
+		return false, "Unable to read file "..path.."("..reason..")"
     end
 	buffer = buffer..(data or "")
 	until not data
 	proxy.close(handle)
-	return buffer
+	return true, buffer
+end
+
+Packager.writeWholeFile = function(proxy, path, str)
+	local handle, reason = proxy.open(path, "w")
+	if (not handle) then return false, reason end
+	while (str:len() > 1000) do
+		proxy.write(handle, str:sub(1,1000))
+		str = str:sub(1001)
+		OS.sleep(0.01)
+	end
+	proxy.write(handle, str)
+	return true
 end
 
 Packager.joinList = function(list)
@@ -158,197 +38,85 @@ Packager.joinList = function(list)
 	return s
 end
 
-Packager.request = function(address, args)
-	if not component.isAvailable("internet") then
-		print("No internet card, unable to send HTTP request")
-		return
-	end
-	local internet = component.internet
-	local result, request = pcall(internet.request, address, args)
-	--print(result)
-	if (result) then
-		local buffer = ""
-		repeat
-			local data, reason = request.read()
-			if (not data) and (reason) then error(reason) end
-			buffer = buffer..(data or "")
-		until not data
-		request.close()
-		if (string.match(buffer, "^Bad API request, ")) then
-			print("HTTP Request Failed: "..buffer)
-			return
-		end
-		return buffer
-	else
-		print("HTTP Request Failed")
-	end
-end
-
-Packager.writeFile = function(proxy, path, str)
-	local handle = proxy.open(path, "w")
-	if (not handle) then print("Unable to create file "..path) return end
-	while (str:len() > 500) do
-		proxy.write(handle, str:sub(1,500))
-		str = str:sub(501)
-		OS.sleep(0.01)
-	end
-	proxy.write(handle, str)
-end
-
 Packager.wipeDriveForOSInstall = function(proxy, path)
 	for _,f in pairs(proxy.list(path)) do
 		if (f ~= "config") then
 			proxy.remove(path..f)
-			print("Deleting "..f)
 		end
 	end
 end
 
-Packager.wipeDriveForOSInstall2 = function(proxy, path)
-	for _,f in pairs(proxy.list(path)) do
-		if (f ~= "config") then
-			proxy.remove(path..f)
-			Shell.print("Deleting "..f)
-		end
-	end
-end
-
-Packager.installToDrive = function(driveLetter)
-	local proxy = fs.drive.letterToProxy(driveLetter)
-	if (not proxy) then print("Drive does not exist") return false end
-	print("Wiping drive "..driveLetter)
-	Packager.wipeDriveForOSInstall(proxy, "/")
-	local packagedOS = Packager.packageIntoTable()
-	for i,p in pairs(packagedOS.Directories) do
-		proxy.makeDirectory(p)
-	end
-	OS.sleep(0.5)
-	for i,p in pairs(packagedOS) do
-		if (i ~= "Directories") then
-			for fn,f in pairs(p) do
-				print("Installing "..fn)
-				if (type(f):lower() == "string") then
-					Packager.writeFile(proxy, fn, f)
-					OS.sleep(0.1)
-				end
+Packager.doFileTree = function(proxy, current, callback) --Run a callback function recursively on every file in the directory tree
+	for i,f in pairs(proxy.list(current)) do
+		if (i ~= "n" and f ~= "tmp/") then
+			if (proxy.isDirectory(f) ) then
+				local s,r = callback(proxy, current..f, true)
+				if (s ~= nil and not s) then return false, r end
+				s,r = Packager.doFileTree(proxy, f, callback)
+				if (s ~= nil and not s) then return false, r end
+			else
+				local s,r = callback(proxy, current..f)
+				if (s ~= nil and not s) then return false, r end
 			end
 		end
 	end
 	return true
 end
 
-Packager.copyOSFileToDrive = function(driveProxy, filePath, newName)
-	local inStr = Packager.getFileString(filePath)
-	local handle = driveProxy.open("/"..newName, "w")
-	driveProxy.write(handle, inStr)
-	print("copied "..filePath.." to "..newName)
+Packager.getPathFile = function(s)
+	local _,_,f = s:find("/?([^/]*)$")
+	return f
 end
 
-Packager.copyOSFileToDrive2 = function(driveProxy, filePath, newName)
-	local inStr = Packager.getFileString(filePath)
-	local handle = driveProxy.open("/"..newName, "w")
-	driveProxy.write(handle, inStr)
-	Shell.print("copied "..filePath.." to "..newName)
+Packager.installToDrive = function(driveLetter)
+	local localproxy = fs.drive.letterToProxy("A")
+	if (not localproxy) then return false, "Local drive removed" end
+	local proxy = fs.drive.letterToProxy(driveLetter)
+	if (not proxy) then return false, "Drive does not exist" end
+	Packager.wipeDriveForOSInstall(proxy, "")
+	return Packager.doFileTree(localproxy, "", function(cproxy, f, isDir)
+		if (isDir) then proxy.makeDirectory(f) return end
+		local n = Packager.getPathFile(f)
+		if (n == "config") then return end
+		return Packager.copyFile(cproxy, proxy, f, f)
+	end)
+end
+
+Packager.copyFile = function(srcProxy, destProxy, srcFile, destFile)
+	local readSuccess, readResult = Packager.readWholeFile(srcFile, srcProxy)
+	if (not readSuccess) then return false, readResult end
+	writeSuccess, writeResult = Packager.writeWholeFile(destProxy, destFile, readResult)
+	return writeSuccess, writeResult
 end
 
 Packager.installMiniAppToDrive = function(drive, appFile)
 	local proxy = fs.drive.letterToProxy(drive)
 	if (not proxy) then print("Drive does not exist") return false end
-	print("Wiping drive "..drive)
-	Packager.wipeDriveForOSInstall(proxy, "/")
-	print("Wiped")
-	Packager.copyOSFileToDrive(proxy, "/init.lua", "/init.lua")
-	Packager.copyOSFileToDrive(proxy, "/CoreLibs.lua", "/CoreLibs.lua")
-	Packager.copyOSFileToDrive(proxy, "/Keyboard.lua", "/Keyboard.lua")
-	Packager.copyOSFileToDrive(proxy, appFile, "/OS.lua")
-	for f in filesystem.list("/modules/") do
-		Packager.copyOSFileToDrive(proxy, "/modules/"..f, "/"..f)
-	end
-	return true
+	return Packager.installMiniAppToDriveProxy(proxy, appFile)
 end
 
 Packager.installMiniAppToDriveProxy = function(proxy, appFile)
 	if (not proxy) then Shell.print("Drive does not exist") return false end
-	Shell.print("Wiping drive")
-	Packager.wipeDriveForOSInstall2(proxy, "/")
-	Shell.print("Wiped")
-	Packager.copyOSFileToDrive(proxy, "/init.lua", "/init.lua")
-	Packager.copyOSFileToDrive(proxy, "/CoreLibs.lua", "/CoreLibs.lua")
-	Packager.copyOSFileToDrive(proxy, "/Keyboard.lua", "/Keyboard.lua")
-	Packager.copyOSFileToDrive(proxy, appFile, "/OS.lua")
+	local localproxy = fs.drive.letterToProxy("A")
+	if (not localproxy) then return false, "Local drive removed" end
+	local s,r = Packager.wipeDriveForOSInstall(proxy, "/")
+	if (not s) then return false, r end
+	s,r = Packager.copyFile(localproxy, proxy, "/init.lua", "/init.lua")
+	if (not s) then return false, r end
+	s,r = Packager.copyFile(localproxy, proxy, "/CoreLibs.lua", "/CoreLibs.lua")
+	if (not s) then return false, r end
+	s,r = Packager.copyFile(localproxy, proxy, "/Keyboard.lua", "/Keyboard.lua")
+	if (not s) then return false, r end
+	s,r = Packager.copyFile(localproxy, proxy, appFile, "/OS.lua")
+	if (not s) then return false, r end
 	for f in filesystem.list("/modules/") do
-		Packager.copyOSFileToDrive2(proxy, "/modules/"..f, "/"..f)
+		s,r = Packager.copyFile(localproxy, proxy, "/modules/"..f, "/"..f)
+		if (not s) then return false, r end
 	end
 	return true
 end
 
-Packager.writeTmpFile = function(name, contents)
-	local proxy = fs.proxy(computer.getBootAddress())
-	Packager.writeFile(proxy, "/tmp/"..name, contents)
-	return true
-end
 
-Packager.installUpdatePackage = function(packagePath)
-	local proxy = fs.drive.letterToProxy("A")
-	----- get package -----
-	local inStr = Packager.getFileString(packagePath)
-	if (not inStr) then print("Update failed") return false end
-	local packagedOS = JSON.decode(inStr)
-	if (not packagedOS) or (not packagedOS.Directories) then print("Update failed") return false end
-	print("Wiping drive")
-	Packager.wipeDriveForOSInstall(proxy, "/")
-	for i,p in pairs(packagedOS.Directories) do
-		proxy.makeDirectory(p)
-	end
-	OS.sleep(0.5)
-	for i,p in pairs(packagedOS) do
-		if (i ~= "Directories") then
-			for fn,f in pairs(p) do
-				print("Installing "..fn)
-				if (type(f):lower() == "string") then
-					Packager.writeFile(proxy, fn, f)
-					OS.sleep(0.1)
-				end
-			end
-		end
-	end
-	return true
-end
-
-Packager.installUpdateFromDrive = function(packagePath)
-	if (not packagePath) or (type(packagePath) ~= "string") or (#packagePath < 4) then return false end
-	local proxy = fs.drive.letterToProxy(packagePath:sub(1,1))
-	local aProxy = fs.drive.letterToProxy("A")
-	if (not proxy) then return false end
-	if (packagePath:sub(2,2) == ":") then --A:/path
-		packagePath = packagePath:sub(3)
-	else --A/path
-		packagePath = packagePath:sub(2)
-	end
-	----- get package -----
-	local inStr = Packager.getFileString(packagePath, proxy)
-	if (not inStr) then return false end
-	local packagedOS = JSON.decode(inStr)
-	if (not packagedOS) or (not packagedOS.Directories) then return false end
-	print("Wiping drive")
-	Packager.wipeDriveForOSInstall(aProxy, "/")
-	for i,p in pairs(packagedOS.Directories) do
-		aProxy.makeDirectory(p)
-	end
-	OS.sleep(0.5)
-	for i,p in pairs(packagedOS) do
-		if (i ~= "Directories") then
-			for fn,f in pairs(p) do
-				print("Installing "..fn)
-				if (type(f):lower() == "string") then
-					Packager.writeFile(aProxy, fn, f)
-					OS.sleep(0.1)
-				end
-			end
-		end
-	end
-	return true
-end
 
 Packager.componentAdded = function(_, address, componentType)
 	if (componentType == "filesystem") then

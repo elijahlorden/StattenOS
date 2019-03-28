@@ -2,9 +2,10 @@ local Device = {}
 Device.driverList = {
 	Default = {Name = "Default", desc = "Default, no special function"};
 	Server = {Name = "Server", desc = "Central control server for networked devices"};
-	Tablet = {Name = "Tablet", desc = "Remote control terminal", file = "Tablet"};
-	Fusion_Reactor = {Name = "Fusion_Reactor", desc = "Used to control the Mekanism Fusion Reactor"};
+	Tablet = {Name = "Tablet", desc = "Provides features useful for a mobile terminal"};
+	Fusion_Reactor = {Name = "Fusion_Reactor", desc = "Used to automate control of a Fusion Reactor (Mekanism)"};
 	Redstone = {Name = "Redstone", desc = "Used to control redstone"};
+	DR_Factory = {Name = "DR_Factory", desc = "Used to automate the creation of Resonating Crystals (Deep Resonance)"};
 }
 
 Device.miniAppList = {
@@ -35,9 +36,9 @@ Device.updating = false
 Device.updatePackage = nil
 
 Device.loadConfig = function()
-	local str = Packager.getFileString("/config")
-	if (not str) then print("'/config' does not exist, creating new configuration file") return end
-	Device.currentConfig = serialization.unserialize(str) or Device.currentConfig
+	local success, result = Packager.readWholeFile("/config")
+	if (not success) then print("'/config' does not exist, creating new configuration file") return end
+	Device.currentConfig = serialization.unserialize(result) or Device.currentConfig
 	if (not Device.currentConfig.Settings) then Device.currentConfig.Settings = {} end
 	return true
 end
@@ -174,13 +175,6 @@ Device.commandBusyResponse = function(packet)
 	response:sendBusy()
 end
 
-Device.updateListener = function(_, FileName, FilePath) -- FTP event Listener
-	if (FileName == "UpdatePackage") then
-		Shell.print("Received update package, run 'reboot' to install update and reboot")
-		Device.updatePackage = FilePath
-	end
-end
-
 Device.init = function()
 	Device.loadConfig()
 	print("Loading Device Driver '"..Device.currentConfig.Driver.."'")
@@ -202,13 +196,13 @@ Device.init = function()
 	Device.registerSettings(Device.registerSettingsFunc)
 	Device.registerSettingListener(Device.settingUpdatedFunc)
 	print("Device Name: "..Device.currentConfig.Name)
-	network.registerNetworkListener(Device.commandListener)
-	network.ftp.registerFtpListener(Device.updateListener)
+	network.registerNetworkListener(Device.commandListener, {Enum.Port.Command, Enum.Port.General}, {Enum.Header.RUNCOMMAND})
 	-- set label
-	local dProxy = fs.drive.letterToProxy(initDrive)
+	local dProxy = fs.drive.letterToProxy("A")
 	dProxy.setLabel(Device.currentConfig.Name)
 	-- send notification to server
 	network.sendKeepalivePacket()
+	Device.init = nil
 end
 
 

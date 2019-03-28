@@ -1,7 +1,7 @@
 local Tablet = {}
 
 Tablet.init = function()
-	network.registerNetworkListener(Tablet.gateNetworkListener)
+	network.registerNetworkListener(Tablet.gateNetworkListener, {Enum.Port.StargateResponse}, {Enum.Header.Gate.GATEDIALLINGOUT, Enum.Header.Gate.GATEDIALLINGIN, Enum.Header.Gate.GATECLOSING, Enum.Header.Gate.GATECONNECTED})
 	local fetchPkt = {Header = Enum.Header.FETCHGATEREGISTRY}
 	network.sendPacket(Enum.Port.Stargate, fetchPkt, false)
 	network.registerPingListener()
@@ -113,7 +113,6 @@ end
 local prevGatePacket = {Header = "", GateAddress = ""}
 
 Tablet.gateNetworkListener = function(_, localNetworkCard, remoteAddress, port, distance, inpkt)
-	if (not port) then return end
 	if (port ~= Enum.Port.StargateResponse) and (port ~= 0) then return end
 	if (not inpkt) or (type(inpkt):lower() ~= "string") then return end
 	local packet = serialization.unserialize(inpkt)
@@ -122,21 +121,18 @@ Tablet.gateNetworkListener = function(_, localNetworkCard, remoteAddress, port, 
 	if (packet.Receiver) then
 		if (packet.Receiver ~= Device.currentConfig.Name) and (packet.Receiver ~= "All") then return end
 	end
-	if (packet.Header == "GateDiallingOut") then
+	if (packet.Header == Enum.Header.Gate.GATEDIALLINGOUT) then
 		if (not packet.GateAddress) then return end
 		Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").." initiated outgoing dialling sequence to "..(packet.RemoteAddress or "REMOTE_ADDRESS_ERROR"))
-	elseif (packet.Header == "GateDiallingIn") then
+	elseif (packet.Header == Enum.Header.Gate.GATEDIALLINGIN) then
 		if (not packet.GateAddress) then return end
 		Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").." has received incoming dialling sequence from "..(packet.RemoteAddress or "REMOTE_ADDRESS_ERROR"))
-	elseif (packet.Header == "GateClosing") then
+	elseif (packet.Header == Enum.Header.Gate.GATECLOSING) then
 		if (not packet.GateAddress) then return end
 		Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").."'s connection has terminated")
-	elseif (packet.Header == "GateClosing") then
+	elseif (packet.Header == Enum.Header.Gate.GATECONNECTED) then
 		if (not packet.GateAddress) then return end
-		Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").."'s connection has terminated")
-	elseif (packet.Header == "GateConnected") then
-		if (not packet.GateAddress) then return end
-		if (prevGatePacket.Header == "GateConnected") and (prevGatePacket.GateAddress == packet.GateAddress) then return end
+		if (prevGatePacket.Header == Enum.Header.Gate.GATECLOSING) and (prevGatePacket.GateAddress == packet.GateAddress) then return end
 		if (packet.Direction == "Outgoing") then
 			Shell.print("Gate "..(packet.GateAddress or "LOCAL_ADDRESS_ERROR").." has established a stable connection to "..(packet.RemoteAddress or "REMOTE_ADDRESS_ERROR"))
 		else

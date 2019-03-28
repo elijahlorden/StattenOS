@@ -298,6 +298,7 @@ function event_code()
     local result, message = pcall(callback, ...)
     if not result and type(event.onError) == "function" then
       pcall(event.onError, message)
+	  if (Shell) then Shell.print(message) end
       return
     end
     return message
@@ -393,6 +394,7 @@ function event_code()
   end
   
   function event.onError(message)
+	
     local log = io.open("/tmp/event.log", "a")
     if log then
       log:write(message .. "\n")
@@ -549,11 +551,11 @@ function fs_code()
 	return iter
   end
   fs.drive._current = "A" --as the boot drive is A:
-  function fs.drive.setcurrent(letter)
+  --[[function fs.drive.setcurrent(letter)
 	letter = letter:upper()
     if not fs.drive._map[letter] then error("Invalid Drive", 2) end
     fs.drive._current = letter
-	end
+	end--]]
   function fs.drive.getcurrent() return fs.drive._current end
   function fs.invoke(method, ...) return fs.drive._map[fs.drive._current][method](...) end
   function fs.proxy(filter)

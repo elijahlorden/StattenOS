@@ -11,12 +11,16 @@ Enum.Header = {
     KEEPALIVE = "KEAL",
     RUNCOMMAND = "RNCD",
 	COMMANDRESPONSE = "CDRES",
-    FILETRANSFERDATA = "FTFD",
-    FILETRANSFERCOMPLETE = "FTFC",
 	RSTLOCALDEVICELIST = "RLDL",
 	SERVERDEVICELIST = "DVLP",
 	NEWDEVICE = "NWDVC",
 	DEVICEDISCONNECT = "DVDCN",
+	STREAMOPEN = "OPNSTRM",
+	STREAMCLOSE = "CLSSTRM",
+	STREAMACK = "ACKSTRM",
+	STREAMPING = "PNGSTRM",
+	STREAMDATA = "DATSTRM",
+	STREAMERROR = "ERRSTRM",
 }
 
 Enum.Header.Gate = {
@@ -39,7 +43,7 @@ Enum.Port.Tunnel = 0
 Enum.Port.General = 6000
 Enum.Port.Command = 5000
 Enum.Port.CommandResponse = 50001
-Enum.Port.FTP = 5002
+Enum.Port.Stream = 5002
 Enum.Port.Keepalive = 5003
 Enum.Port.Stargate = 5006
 Enum.Port.StargateResponse = 5007
@@ -65,6 +69,18 @@ Enum.Event.FTPFILERECEIVED = "FTPFileReceived"
 Enum.Event.SETTINGUPDATED = "DEVICESETTINGUPDATED"
 Enum.Event.UDRIVEADD = "UNMANAGEDDRIVEINSERTED"
 Enum.Event.UDRIVEREMOVE = "UMANAGEDDRIVEREMOVED"
+
+-------------------------------------------------------------------------------
+
+Enum.Stream = {}
+Enum.Stream.Opening = "STREAMOPENING"
+Enum.Stream.Idle = "STREAMOPEN"
+Enum.Stream.Closed = "STREAMCLOSED"
+Enum.Stream.Streaming = "STREAMSTREAMING"
+
+Enum.Stream.DataEvent = "STREAMEVENTDATA"
+Enum.Stream.OpenEvent = "STREAMEVENTOPEN"
+Enum.Stream.CloseEvent = "STREAMEVENTCLOSE"
 
 -------------------------------------------------------------------------------
 -- Unmanaged disk type headers

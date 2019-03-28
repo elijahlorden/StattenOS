@@ -53,8 +53,9 @@ end
 
 Shell.init = function()
 	event.listen("key_down", Shell.keyDownEventListener)
-	network.registerNetworkListener(Shell.networkCommandResponseListener, "CommandResponseListener")
+	network.registerNetworkListener(Shell.networkCommandResponseListener, {Enum.Port.CommandResponse, Enum.Port.General}, {Enum.Header.COMMANDRESPONSE})
 	event.timer(2, Shell.stepNetCmds, math.huge)
+	Shell.init = nil
 end
 
 Shell.keyDownEventListener = function(event, address, key, code, plr)

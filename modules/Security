@@ -56,14 +56,15 @@ Security.init = function()
 	-- generate virtual dials
 	local prng = Security.newRandom(Security.dialSeed)
 	--print(Security.chars)
-	for i=1,Security.numDials do
+	--[[for i=1,Security.numDials do
 		Security.genDial(i, prng)
-	end
+	end-]]
 	
 	fs.uDrive.formats["1"] = Security.diskFormat -- Add the User ID disk format to the unmanaged disk library
 	
 	--local key = "H"
 	--print(Security.encrypt(Security.decrypt("Hi", key), key.."2"))
+	Security.init = nil
 end
 
 Security.serverInit = function()
@@ -71,14 +72,14 @@ Security.serverInit = function()
 		Security.loadedData.PublicUser = Security.addUser("Public", "Public")
 		--Shell.print("[Security] Created Public User")
 	end
-	
+	--[[
 	event.listen(Enum.Event.UDRIVEADD, function(_,address)
 		local usr = Security.loadedData.Users[Security.loadedData.PublicUser]
 		if (not usr) then print("UsrErr") return end
 		print(tostring(fs.uDrive.write(address, usr, 1)))
 		local rd = fs.uDrive.read(address)
 		for i,p in pairs(rd) do print(i.." : "..p) end
-	end)
+	end)--]]
 	
 	--event.timer(5, Security.sessionTick, math.huge)
 	

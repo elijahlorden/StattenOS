@@ -1,0 +1,72 @@
+local Redstone = {}
+
+Redstone.init = function()
+	network.registerPingListener()
+end
+
+Redstone.load = function()
+	
+end
+
+Redstone.registerCommands = function()
+	Commands.registerCommand("rs", Redstone.rs, "Set redstone signal on a side", "side, [power]")
+end
+
+Redstone.rs = function(side, power)
+	if (not side) then return false end
+	if (not power) then
+		if type(side) == "string" then
+			side = Enum.Side[side]
+		end
+		print(component.proxy(component.list("redstone")()).getInput(side))
+		if type(side) == "string" then
+			side = Enum.Side[side]
+		end
+		return true, response
+	end
+	if type(side) == "string" then
+		side = Enum.Side[side]
+	end
+	power = tonumber(power) or 0
+	print(component.proxy(component.list("redstone")()).setOutput(side, power))
+	return true, response
+end
+
+Redstone.setup = function()
+	
+end
+
+Redstone.powerOff = function()
+	
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+return Redstone

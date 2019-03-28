@@ -5,6 +5,7 @@ OS.modules = {}
 OS.allowedRootFiles = {"drivers/", "miniapps/", "modules/", "tmp/", "config", "CoreLibs.lua", "init.lua", "Keyboard.lua", "OS.lua"}
 
 OS.chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+OS.debug = true -- Enable for debugging output
 
 function OS.sleep(timeout)
 	checkArg(1, timeout, "number", "nil")
@@ -89,10 +90,6 @@ print("Starting "..OS.Name.." "..OS.Version)
 function kernelError()
 	printErr("\nPress any key to try again.")
 	term.readKey()
-end
-
-local function interrupt(data)
-	if data[2] == "RUN" then miniOS.runfile(data[3], table.unpack(data[4])) end
 end
 
 local function runfile(file, ...)
@@ -200,7 +197,6 @@ end
 print()
 filesystem.remove("/tmp")
 filesystem.makeDirectory("/tmp")
-print("Cleared /tmp")
 
 -- Load modules
 print()
@@ -236,11 +232,10 @@ print()
 print("Memory: "..tostring(math.floor((computer.totalMemory() - computer.freeMemory())/1024)).."KB used / "..tostring(math.floor(computer.totalMemory()/1024)).."KB total")
 print()
 
-
+loadModules = nil
 
 OS.memoryMsgStr = function()
-	--return "Memory: "..tostring(math.floor((computer.totalMemory() - computer.freeMemory())/1024)).."KB used / "..tostring(math.floor(computer.totalMemory()/1024)).."KB total"
-	return "Memory: "..tostring(math.floor((computer.totalMemory() - OS.averageMem())/1024)).."KB used / "..tostring(math.floor(computer.totalMemory()/1024)).."KB total"
+	return "Memory: "..tostring(math.floor((computer.totalMemory() - computer.freeMemory())/1024)).."KB used / "..tostring(math.floor(computer.totalMemory()/1024)).."KB total"
 end
 
 OS.powerMsgStr = function()
@@ -253,17 +248,6 @@ OS.cleanNils = function(t)
 		ans[ #ans+1 ] = v
 	end
 	return ans
-end
-
-OS.memAverages = {}
-
-OS.averageMem = function()
-	local t = 0
-	for _,n in pairs(OS.memAverages) do
-		t = t + n
-	end
-	t = t/#OS.memAverages
-	return t
 end
 
 OS.doesTableContainString = function(tbl, str, caseSensitive)
@@ -289,13 +273,11 @@ end
 print()
 
 doInit() -- Initalize modules
-
+doInit = nil
 computer.pushSignal(Enum.Event.OSLOADED)
 
 while true do
-	OS.sleep(1)
-	table.insert(OS.memAverages, computer.freeMemory())
-	if (#OS.memAverages > 5) then table.remove(OS.memAverages, 1) end
+	OS.sleep(0)
 end
 
 
