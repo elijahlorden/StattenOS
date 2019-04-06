@@ -32,7 +32,7 @@ end
 function boot:dofile(p)
 	local s,r = self:load(p)
 	if (not s) then return false, r end
-	local p,r = load(s)
+	local p,r = load(s, "="..p)
 	if (not p) then return false, r end
 	r = table.pack(xpcall(p, function(s) return s.."\n"..debug.traceback() end))
 	if (not r[1]) then return false, r[2] end
@@ -50,5 +50,6 @@ for i,p in pairs(boot:list("boot")) do
 	end
 end
 
-while true do computer.pullSignal(1) end
+boot = nil -- This is no longer needed
+
 

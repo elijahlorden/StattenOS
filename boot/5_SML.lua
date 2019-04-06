@@ -1,12 +1,11 @@
 -- StattenOS Markup Language Parser --
 sml = {
-	systemEntities = {
+	globalEntities = {
 		quot = "\"",
 		apos = "'",
 		amp = "&",
 		gt = ">",
 		lt = "<",
-		
 	}
 }
 do
@@ -30,14 +29,31 @@ do
 	end
 	
 	local function replaceEntities(s, entities)
-		
+		return s:gsub("&([%w%d%p]+);", function(k)
+			local p1, p2 = k:match("(%w+):(.+)")
+			if (p1 and p2) then
+				local f = entities[p1]
+				if (f and type(f) == "function") then
+					return f(p2)
+				else
+					return "&"..k..";"
+				end
+			else
+				local v = entities[k]
+				if (v) then return v else return "&"..k..";" end
+			end
+		end)
 	end
 	
 	local function parseAttribs(s, doc)
 		local tbl = {}
 		for k,v in s:gmatch("%s-(%w+)%s-=%s-[\"']([^<>\"']+)[\"']") do
-			if (tonumber(v)) then v = tonumber(v) end
-			
+			if (tonumber(v)) then
+				v = tonumber(v)
+			else
+				v = replaceEntities(v, doc.entities)
+			end
+			tbl[k] = v
 		end
 		return tbl
 	end
@@ -69,19 +85,21 @@ do
 	end
 	
 	local function parse(s)
-		local doc = {name = "document", children = {}, attribs = {}, entities = {}}
-		setmetatable(doc.entities, {__index = sml.systemEntities})
+		local doc = {name = "document", ln = 0, children = {}, attribs = {}, entities = {}}
+		setmetatable(doc.entities, {__index = sml.globalEntities})
 		doc.parent = doc
 		local currentTag = doc
 		local ptr = 1
+		local lastPtr = 1
 		local tag, tagType, reason
 		s = removeComments(s)
 		while (true) do
 			local i,j = s:find(">", ptr)
 			local segment
+			lastPtr = ptr
 			if (i) then segment = s:sub(ptr, i+1); ptr = j + 1; else segment = s:sub(ptr, s:len()); ptr = s:len(); end
-			tag, tagType, reason = parseTag(segment)
-			if (not tag and reason) then 
+			tag, tagType, reason = parseTag(segment, doc)
+			if (not tag and reason) then
 				return nil, reason.." (Line "..getCurrentLine(s,ptr)..")" -- Failed to parse next tag
 			elseif (not tag and currentTag ~= doc) then -- Tag was not closed
 				return nil, "Missing </"..currentTag.name.."> (Line "..getCurrentLine(s,ptr)..")"
@@ -95,14 +113,16 @@ do
 				tag.parent = currentTag
 				table.insert(currentTag.children, tag)
 				if (innertxt) then
-					tag.innertext = innertxt
+					tag.innertext = replaceEntities(innertxt, doc.entities)
 					ptr = nptr
 				else
 					currentTag = tag
 				end
+				tag.ln = getCurrentLine(s,ptr)
 			elseif (tag and tagType == tagTypeSelfTerminate) then -- New self-terminating tag
 				tag.parent = currentTag
 				table.insert(currentTag.children, tag)
+				tag.ln = getCurrentLine(s,ptr)
 			elseif (tag and tagType == tagTypeClose) then -- Close parent tag
 				if (currentTag == doc) then
 					return nil, "Floating closing tag (Line "..getCurrentLine(s,ptr)..")"
@@ -119,14 +139,14 @@ do
 	end
 	sml.parse = parse
 	
-	local doc, reason = parse("<docx><s> </s><s/><s></s><s>some text</s></docx><docf/>")
+	local doc, reason = parse("<docx><s text='&quot;quoted string&quot;'/><s text='&amp;amped string&amp;' text2='txt2'></s><s>some text</s></docx><docf/>")
 	local gpu = gl.getGPU()
 	gpu.set(1,1,reason)
 	if (doc) then
 		local col = 1
 		for i,p in pairs(doc.children[1].children) do
-			gpu.set(col,2,(p.innertext or "notext")..", ")
-			col = col + (p.innertext or "notext"):len() + 2
+			gpu.set(col,2,(p.attribs.text2 or p.attribs.text or "notext")..", ")
+			col = col + (p.attribs.text2 or p.attribs.text or "notext"):len() + 2
 		end
 	end
 	
@@ -138,3 +158,4 @@ do
 	
 	
 end
+
