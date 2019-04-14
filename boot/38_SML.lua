@@ -13,6 +13,61 @@ do
 	local tagTypeSelfTerminate = 1
 	local tagTypeClose = 2
 	
+	local nodemethods = {
+		setParent = function(this, newParent) -- Set the node's parent
+			if (this.parent == newParent or this == newParent or newParent.parent == this) then return false end
+			if (this.parent ~= nil) then
+				for i,p in pairs(this.parent.children) do if (p == this) then this.parent.children[i] = nil end end
+			end
+			if (newParent ~= nil) then
+				table.insert(newParent.children, this)
+			end
+			this.parent = newParent
+			return true
+		end;
+		
+		remove = function(this) -- Remove the node from it's parent
+			return this:setParent(nil)
+		end;
+		
+		addChild = function(this, newChild)
+			return newChild:setParent(this)
+		end;
+		
+		getChildren = function(this, filter)
+			if (filter) then
+				local filtered = {}
+				for i=1,#this.children do
+					local child = this.children[i]
+					if (child.name:find(filter)) then table.insert(filtered, child) end
+				end
+				return filtered
+			else
+				return this.children
+			end
+		end;
+		
+		getFirstChild = function(this, filter)
+			if (filter) then
+				for i=1,#this.children do
+					local child = this.children[i]
+					if (child.name:find(filter)) then return child end
+				end
+			else
+				return this.children[1]
+			end
+		end;
+		
+		get = function(this, k) return this.attribs[k] end;
+		gett = function(this, k, tk) if (type(this.attribs[k] == "table")) then return this.attribs[k][tk] end end;
+		set = function(this, k, v) this.attribs[k] = v end;
+		sett = function(this, k, tk, v) this.attribs[k] = this.attribs[k] or {} if (type(this.attribs[k] == "table")) then this.attribs[k][tk] = v end end;
+		
+	}
+	local nodemeta = {__index = nodemethods}
+	
+	sml.nodemeta = nodemeta -- Some modules require this in order to extend node functionality
+	
 	local function getCurrentLine(s, ptr)
 		local i = 1
 		for _ in s:sub(1,ptr):gmatch("\n") do i = i + 1 end
@@ -48,12 +103,7 @@ do
 	local function parseAttribs(s, doc)
 		local tbl = {}
 		for k,v in s:gmatch("%s-(%w+)%s-=%s-[\"']([^<>\"']+)[\"']") do
-			if (tonumber(v)) then
-				v = tonumber(v)
-			else
-				v = replaceEntities(v, doc.entities)
-			end
-			tbl[k] = v
+			tbl[k] = replaceEntities(v, doc.entities)
 		end
 		return tbl
 	end
@@ -62,9 +112,9 @@ do
 		local nc = firstChar(s)
 		if (not nc) then return nil, nil, nil end
 		if (nc ~= "<") then return nil, nil, "Unexpected token '"..nc.."'" end
-		local i, j, name, attribs, terminate = s:find("%s-<(%w+)%s-(.-)(/?)>") -- Try to match open or self-terminating tag
+		local i, j, name, attribs, terminate = s:find("%s-<([%w%.]+)%s-(.-)(/?)>") -- Try to match open or self-terminating tag
 		if (not i) then
-			i, j, name = s:find("%s-</%s-(%w+)%s->") -- Try to match close tag
+			i, j, name = s:find("%s-</%s-([%w%.]+)%s->") -- Try to match close tag
 			if (not i) then return nil, nil, "malformed tag" end
 			return {name = name}, tagTypeClose, nil
 		end
@@ -72,11 +122,13 @@ do
 		if (not attribTbl) then return nil, nil, "malformed tag attributes" end
 		local tagType
 		if (terminate:len() > 0 and terminate ~= " ") then tagType = tagTypeSelfTerminate else tagType = tagTypeOpen end
-		return {
+		local newTag = {
 			name = name,
 			attribs = attribTbl,
 			children = {}
-		}, tagType, nil
+		}
+		setmetatable(newTag, nodemeta)
+		return newTag, tagType, nil
 	end
 	
 	local function tryGetInnerText(s, tagname)
@@ -85,7 +137,9 @@ do
 	end
 	
 	local function parse(s)
-		local doc = {name = "document", ln = 0, children = {}, attribs = {}, entities = {}}
+		local starttime = os.clock()
+		local doc = {name = "documentroot", ln = 0, children = {}, attribs = {}, entities = {}}
+		setmetatable(doc, nodemeta)
 		setmetatable(doc.entities, {__index = sml.globalEntities})
 		doc.parent = doc
 		local currentTag = doc
@@ -94,6 +148,7 @@ do
 		local tag, tagType, reason
 		s = removeComments(s)
 		while (true) do
+			if (os.clock() - starttime > 4.5) then event.sleep(0) starttime = os.clock() end -- This prevents the computer from crashing if loading the document takes a long time
 			local i,j = s:find(">", ptr)
 			local segment
 			lastPtr = ptr
@@ -113,7 +168,7 @@ do
 				tag.parent = currentTag
 				table.insert(currentTag.children, tag)
 				if (innertxt) then
-					tag.innertext = replaceEntities(innertxt, doc.entities)
+					tag.innerText = replaceEntities(innertxt, doc.entities)
 					ptr = nptr
 				else
 					currentTag = tag
@@ -139,20 +194,24 @@ do
 	end
 	sml.parse = parse
 	
-	local doc, reason = parse("<docx><s text='&quot;quoted string&quot;'/><s text='&amp;amped string&amp;' text2='txt2'></s><s>some text</s></docx><docf/>")
-	local gpu = gl.getGPU()
-	gpu.set(1,1,reason)
-	if (doc) then
-		local col = 1
-		for i,p in pairs(doc.children[1].children) do
-			gpu.set(col,2,(p.attribs.text2 or p.attribs.text or "notext")..", ")
-			col = col + (p.attribs.text2 or p.attribs.text or "notext"):len() + 2
-		end
+	local newNode = function(name)
+		checkArg(1, name, "string", "nil")
+		name = name or "node"
+		local newNode = {
+			name = name,
+			children = {},
+			attribs = {}
+		}
+		setmetatable(newNode, nodemeta)
+		return newNode
 	end
+	sml.newNode = newNode
 	
-	
-	
-	
+	local isNode = function(o)
+		if (type(o) ~= "table" or getmetatable(o) ~= nodemeta) then return false end
+		return true
+	end
+	sml.isNode = isNode
 	
 	
 	
