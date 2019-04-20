@@ -32,10 +32,19 @@ local start = computer.uptime()
 local docfile = boot:load("pages/test.sml")
 local doc, reason = sml.parse(docfile)
 if (not doc) then error(reason) end
-local dom = controls.initDOM(doc)
+local dom = controls.initPageDOM(doc)
 
-local calls = controls.getCalls(dom, {1,1})
-gl.doDrawCalls(calls)
+local calls = controls.getCalls(dom)
+gl.doDrawCalls(calls, true)
+
+event.listen("touch", function(e, a, x, y, b, p)
+	local control = controls.getControlAt(dom, x, y)
+	if (control) then
+		gpu.set(100,30, control:get("id") or control.name)
+	else
+		gpu.set(100,30, "           ")
+	end
+end)
 
 --gpu.set(1,19,tostring(computer.uptime() - start))
 

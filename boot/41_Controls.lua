@@ -48,7 +48,7 @@ controls.types = { -- Control schemas
 			this.contentViewport = {2,2,size[1]-2,size[2]-2} -- Set the content viewport to be inside of the frame border
 		end;
 		
-		interact = function(this, x, y) -- Return which part of the control was interacted with, -1 if the position does not interact with the control, or 0 if the position is within the control's content
+		interact = function(this, e, a, x, y, t, playerName) -- Called with touch/drag/drop/scroll event parameters, coordinates are transformed to be relative to the control
 			
 		end;
 		
@@ -116,6 +116,7 @@ do
 		local schema = controls.types[control.name]
 		if (schema) then
 			control.isControl = true
+			control.interactable = schema.interactable
 			for i,p in pairs(schema.props) do
 				local rawVal = control:get(i)
 				control:set(i, parseProp(i, rawVal))
@@ -135,7 +136,7 @@ do
 		return starttime
 	end
 	
-	local function initDOM(dom) -- Initalize a loaded DOM (resolve attributes to the correct types, validate controls)
+	local function initPageDOM(dom) -- Initalize a loaded Page DOM (resolve attributes to the correct types, validate controls)
 		local nameTag = dom:getFirstChild("documentname")
 		if (nameTag) then
 			os.log(logf, "Initalizing DOM for document '"..tostring(nameTag.innerText or nameTag:get("name")).."'")
@@ -155,23 +156,28 @@ do
 		if (not domroot) then return nil, "root element 'page' missing" end
 		domroot.contentViewport = {1,2,gresX-1,gresY-2} -- The viewport is within the header and footer
 		domroot:set("pos", {1,1})
+		domroot:set("contentoffset", {1,1})
 		domroot.isContainer = true
+		domroot.isControl = true
 		local idtbl = {}
 		recursiveInit(domroot, idtbl, os.clock())
 		domroot.ids = idtbl
 		os.log(logf, "DOM Initialized")
 		return domroot
 	end
-	controls.initDOM = initDOM
+	controls.initPageDOM = initPageDOM
 	
-	
+	local defaultPos = {1,1}
+	local defaultOffset = {0,0}
+	local defaultViewport = {1, 1, math.huge, math.huge}
 	
 	local function getCalls(control, parentPos) -- Recursively get draw calls for the control, starting at the provided position
-		parentPos = parentPos or {1,1}
+		if (not control.isControl) then return {} end
+		parentPos = parentPos or defaultPos
 		local schema = controls.types[control.name]
-		local pos = control:get("pos") or {1,1}
+		local pos = control:get("pos") or defaultPos
 		local x, y = pos[1] + parentPos[1] - 1, pos[2] + parentPos[2] - 1
-		local offset = control:get("contentOffset") or {0,0}
+		local offset = control:get("contentoffset") or defaultOffset
 		local calls = schema and (schema.drawCalls(control, x, y)) or {}
 		if (control.isContainer) then
 			local vx, vy = x + control.contentViewport[1] - 1, y + control.contentViewport[2] - 1
@@ -184,12 +190,74 @@ do
 					if (truncatedCall) then table.insert(calls, truncatedCall) end
 				end
 			end
-			
-			
 		end
 		return calls
 	end
 	controls.getCalls = getCalls
+	
+	local function getControlRecurse(control, ex, ey, px, py, vx, vy, vmx, vmy)
+		if (not control.isControl) then return nil end
+		local pos = control:get("pos") or defaultPos
+		local size = control:get("size") or defaultPos
+		local cx, cy = pos[1] + px - 1, pos[2] + py - 1
+		local cmx, cmy = cx + size[1] - 1, cy + size[2] - 1
+		if (cx > vmx or cy > vmy or cx+size[1]-1 < vx or cy+size[2]-1 < vy) then return nil end -- If the control is not within the parent viewport at all, it is not visible at the top level
+		cx, cy, cmx, cmy = math.max(vx, math.min(vmx, cx)), math.max(vy, math.min(vmy, cy)), math.max(vx, math.min(vmx, cmx)), math.max(vy, math.min(vmy, cmy)) -- Constrain the control dimensions to the parent viewport
+		if (cx > cmx or cy > cmy or cmx - cx <= 0 or cmy - cy <= 0) then return nil end
+		if (ex >= cx and ex <= cmx and ey >= cy and ey <= cmy) then -- If the search coordiates are within the control
+			if (control.isContainer) then -- If the control is a container, check if the search coordiates are within the viewport
+				local cvx, cvy = cx + control.contentViewport[1] - 1, cy + control.contentViewport[2] - 1
+				local cvmx, cvmy = cvx + control.contentViewport[3] - 1, cvy + control.contentViewport[4] - 1
+				cvx, cvy, cvmx, cvmy = math.max(cx, math.min(cmx, cvx)), math.max(cy, math.min(cmy, cvy)), math.max(cx, math.min(cmx, cvmx)), math.max(cy, math.min(cmy, cvmy)) -- Constrain the content viewport to the control dimensions
+				if (cvx > cvmx or cvy > cvmy or cvmx - cvx <= 0 or cvmy - cvy <= 0) then return control end -- If the constrained viewport is invalid, return the control
+				if (ex >= cvx and ex <= cvmx and ey >= cvy and ey <= cvmy and #control.children > 0) then -- If the search coordinates are within the content viewport
+					local offset = control:get("contentoffset") or defaultOffset
+					local nx, ny = px + pos[1] + control.contentViewport[1] + offset[1] - 2, py + pos[2] + control.contentViewport[2] + offset[2] - 2
+					for i,c in pairs(control.children) do
+						local cres = getControlRecurse(c, ex, ey, nx, ny, cvx, cvy, cvmx, cvmy)
+						if (cres) then return cres end
+					end
+					return control
+				else
+					return control
+				end
+			else
+				return control
+			end
+		end
+		return nil
+	end
+	
+	local function getControlAt(dom, ex, ey) -- Recursively find a control at the provided position
+		local pos = dom:get("pos") or defaultPos
+		local viewport = dom.contentViewport or defaultViewport
+		local offset = dom:get("contentoffset")
+		local x, y = pos[1], pos[2]
+		local vx, vy = x + viewport[1] - 1, y + viewport[2] - 1
+		local vmx, vmy = vx + viewport[3] - 1, vy + viewport[4] - 1
+		local nx, ny = vx + offset[1], vy + offset[2]
+		for i,c in pairs(dom.children) do
+			local cres = getControlRecurse(c, ex, ey, nx, ny, vx, vy, vmx, vmy)
+			if (cres) then return cres end
+		end
+		return nil
+	end
+	controls.getControlAt = getControlAt
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	
 	
 	

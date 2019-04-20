@@ -82,22 +82,22 @@ local function truncateCall(call, vx, vy, vmx, vmy) -- Truncate a call to a view
 	if (callName == "seth") then
 		local ctxt = call[6]
 		local cw = len(ctxt)
-		if (cx > vmx or cy > vmy or cx+cw < vx or cy < vy) then return nil end
-		if (vx > cx) then ctxt = sub(ctxt,vx-cx) cx = vx cw = len(ctxt) end
+		if (cx > vmx or cy > vmy or cx+cw-1 < vx or cy < vy) then return nil end
+		if (vx > cx) then ctxt = sub(ctxt,vx-cx+1) cx = vx cw = len(ctxt) end
 		if (cx+cw > vmx) then ctxt = sub(ctxt,1,vmx-(cx+cw)) end
 		call[2], call[6] = cx, ctxt
 		return call
 	elseif (callName == "setv") then
 		local ctxt = call[6]
 		local ch = len(ctxt)
-		if (cx > vmx or cy > vmy or cy+ch < vy or cx < vx) then return nil end
+		if (cx > vmx or cy > vmy or cy+ch-1 < vy or cx < vx) then return nil end
 		if (vy > cy) then ctxt = sub(ctxt,vy-cy) cy = vy ch = len(ctxt) end
 		if (cy+ch > vmy) then ctxt = sub(ctxt,1,vmy-(cy+ch)) end
 		call[3], call[6] = cy, ctxt
 		return call
 	elseif (callName == "fill") then
-		cx, cy = mathmax(cx, vx), mathmax(cy, vy)
-		local cmx, cmy = mathmin(vmx, cx+call[4]), mathmin(vmy, cy+call[5])
+		cx, cy = mathmax(vx, mathmin(vmx, cx)), mathmax(vy, mathmin(vmy, cy))
+		local cmx, cmy =  mathmax(vx, mathmin(vmx, cmx)), mathmax(vy, mathmin(vmy, cmy))
 		if (cx > cmx or cy > cmy) then return nil end
 		local cw, ch = cmx-cx, cmy-cy
 		if (cw <= 0 or ch <= 0) then return nil end

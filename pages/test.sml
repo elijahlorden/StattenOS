@@ -5,8 +5,8 @@
 	<frame id="f2" pos="1,11" size="40,10" text="With text"/>
 	<frame id="f3" pos="50,2" size="40,10" text="With colored text" textcolor = "00FF00" fcolor="FF0000"/>
 	<frame id="f4" text="Nesting" pos="10,29" size="60,20" textcolor = "BBBBBB">
-		<frame id="f4" pos="2,2" size="40,10" text="Nested" textcolor="00FF00">
-			<frame pos="2,2" size="5,5"/>
+		<frame id="f5" pos="-5,2" size="40,10" text="Nested" textcolor="00FF00">
+			<frame id="f6" pos="32,5" size="5,5"/>
 		</frame>
 		
 	</frame>
