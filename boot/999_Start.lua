@@ -40,9 +40,9 @@ gl.doDrawCalls(calls, true)
 event.listen("touch", function(e, a, x, y, b, p)
 	local control = controls.getControlAt(dom, x, y)
 	if (control) then
-		gpu.set(100,30, control:get("id") or control.name)
+		gpu.set(100,30, (control:get("id") or control.name).." "..tostring(b))
 	else
-		gpu.set(100,30, "           ")
+		gpu.set(100,30, "                "..tostring(b))
 	end
 end)
 

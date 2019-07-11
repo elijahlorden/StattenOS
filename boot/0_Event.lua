@@ -57,9 +57,9 @@ do
 	event.startClock = function() clockStart = os.clock() end
 	
 	event.endClock = function() 
-		clockTime = os.clock() - clockStart 
+		clockTime = os.clock() - clockStart
 		table.insert(clockavgs, clockTime)
-		if (#clockavgs > 30) then table.remove(clockavgs,1) end
+		if (#clockavgs > 15) then table.remove(clockavgs,1) end
 	end
 	
 	event.lastClock = function() return clockTime end

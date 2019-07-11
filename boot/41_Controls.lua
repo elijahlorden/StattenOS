@@ -27,10 +27,10 @@ controls.propParsers = {
 }
 
 controls.props = { -- {type, defaultfunc}
-	pos 				= {"coordinate", function() return {1,1} end}, 							-- The position of the control
-	size 				= {"coordinate", function() return {1,1} end}, 							-- The size of the control
+	pos 				= {"coordinate", function() return {1,1} end}, 							-- The position of the control.  Changing this property will ALWAYS cause the control to invalidate, and will also result in all sibling controls being redrawn.
+	size 				= {"coordinate", function() return {1,1} end}, 							-- The size of the control.  Altering this has the same effect as altering 'pos'
 	tier				= {"number", 3}, 														-- (Page tag only) The tier of graphics card this page supports, defaults to 3
-	contentOffset 		= {"coordinate", function() return {0,0} end}, 							-- The offset to child controls within the container's content viewport
+	contentOffset 		= {"coordinate", function() return {0,0} end}, 							-- The offset to child controls within the container's content viewport.  Altering this will not invalidate the control, but WILL invalidate all of its children.
 	bcolor 				= {"color", 0x000000}, 													-- The background color for the control
 	fcolor 				= {"color", 0xFFFFFF}, 													-- The foreground color for the control
 	textcolor 			= {"color", 0xFFFFFF},													-- The text color for the control
@@ -41,11 +41,12 @@ controls.types = { -- Control schemas
 		isContainer = true;
 		interactable = false;
 		-- {propname = required}
-		props = {pos = true, size = true, bcolor = false, fcolor = false, textcolor = false};
+		props = {bcolor = false, fcolor = false, textcolor = false};
+		invalidate = lookuptable("bcolor", "fcolor", "textcolor"); -- This is a list of properties that will cause the control to be marked for redraw upon alteration. 'pos' and 'size' will always cause the control and its siblings to invalidate.  Any properties included here are cached (tables are shallow-coped).
 		
 		init = function(this) -- Called during DOM init.  For containers, the content viewport should be constrained here. (For example, frames need to set the content viewport to be inside of it's border)
 			local size = this:get("size")
-			this.contentViewport = {2,2,size[1]-2,size[2]-2} -- Set the content viewport to be inside of the frame border
+			this.contentViewport = {2,2,size[1]-2,size[2]-2} -- Set the content viewport to be inside of the frame border. Changing this later will NOT cause the control to invalidate, it must be manually invalidated
 		end;
 		
 		interact = function(this, e, a, x, y, t, playerName) -- Called with touch/drag/drop/scroll event parameters, coordinates are transformed to be relative to the control
@@ -69,7 +70,9 @@ controls.types = { -- Control schemas
 				table.insert(calls, {"seth", x+2, y, bcol, tcol, text})
 			end
 			return calls
-		end
+		end;
+		
+		
 	};
 	
 }
@@ -81,6 +84,22 @@ controls.types = { -- Control schemas
 
 do
 	local logf = "Controls"
+	
+	local controlmethods = {
+		
+	}
+	
+	-- Create control metatables for each schema, rather than creating one for each control
+	-- The index order is: global control methods -> SML methods -> control-specific methods (if any)
+	local smlindex = sml.nodemeta.__index
+	for i,schema in pairs(controls.types) do
+		if (schema.methods) then
+			local smethods = schema.methods
+			schema.schemameta = {__index = function(_,i) return smlindex[i] or controlmethods[i] or smethods[i] end}
+		else
+			schema.schemameta = {__index = function(_,i) return smlindex[i] or controlmethods[i] end}
+		end
+	end
 	
 	local function parseProp(k, rv) -- Parse a raw property value, returns the property default if rv is nil
 		local template = controls.props[k]
@@ -106,7 +125,7 @@ do
 		return rv
 	end
 	
-	local function recursiveInit(control, ids, starttime)
+	local function recursiveInit(control, ids, starttime, domroot)
 		if (os.clock() - starttime > 4.5) then event.sleep(0) starttime = os.clock() end
 		local id = control:get("id")
 		if (id) then
@@ -117,6 +136,7 @@ do
 		if (schema) then
 			control.isControl = true
 			control.interactable = schema.interactable
+			setmetatable(control, schema.schemameta) -- Override the SML metatable with the schema-generated one
 			for i,p in pairs(schema.props) do
 				local rawVal = control:get(i)
 				control:set(i, parseProp(i, rawVal))
@@ -151,16 +171,16 @@ do
 			local tier = tonumber(tierRaw) or 0
 			p:set("tier", tier)
 			if (not domroot) then domroot = p end
-			if (domroot:get("tier") > gpuTier and tier <= gpuTier) then domroot = p end
+			if ((domroot:get("tier") > gpuTier and tier <= gpuTier) or (tier <= domroot:get("tier") and (domroot:get("tier") > gpuTier))) then domroot = p end
 		end
 		if (not domroot) then return nil, "root element 'page' missing" end
-		domroot.contentViewport = {1,2,gresX-1,gresY-2} -- The viewport is within the header and footer
+		domroot.contentViewport = {1,2,gresX-1,gresY-2} -- The viewport is offset by the header, footer, and the window list
 		domroot:set("pos", {1,1})
 		domroot:set("contentoffset", {1,1})
 		domroot.isContainer = true
 		domroot.isControl = true
 		local idtbl = {}
-		recursiveInit(domroot, idtbl, os.clock())
+		recursiveInit(domroot, idtbl, os.clock(), domroot)
 		domroot.ids = idtbl
 		os.log(logf, "DOM Initialized")
 		return domroot
@@ -170,15 +190,16 @@ do
 	local defaultPos = {1,1}
 	local defaultOffset = {0,0}
 	local defaultViewport = {1, 1, math.huge, math.huge}
+	local emptycalls = {}
 	
 	local function getCalls(control, parentPos) -- Recursively get draw calls for the control, starting at the provided position
-		if (not control.isControl) then return {} end
+		if (not control.isControl) then return emptycalls end
 		parentPos = parentPos or defaultPos
 		local schema = controls.types[control.name]
 		local pos = control:get("pos") or defaultPos
 		local x, y = pos[1] + parentPos[1] - 1, pos[2] + parentPos[2] - 1
 		local offset = control:get("contentoffset") or defaultOffset
-		local calls = schema and (schema.drawCalls(control, x, y)) or {}
+		local calls = schema and (schema.drawCalls(control, x, y)) or emptycalls
 		if (control.isContainer) then
 			local vx, vy = x + control.contentViewport[1] - 1, y + control.contentViewport[2] - 1
 			local vmx, vmy = vx + control.contentViewport[3] - 1, vy + control.contentViewport[4] - 1

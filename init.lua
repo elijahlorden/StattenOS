@@ -34,7 +34,7 @@ function boot:dofile(p)
 	if (not s) then return false, r end
 	local p,r = load(s, "="..p)
 	if (not p) then return false, r end
-	r = table.pack(xpcall(p, function(s) return s.."\n"..debug.traceback() end))
+	r = table.pack(xpcall(p, function(s) return tostring(s).."\n"..debug.traceback() end))
 	if (not r[1]) then return false, r[2] end
 	return true, table.unpack(r, 2, r.n)
 end

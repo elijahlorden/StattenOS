@@ -15,6 +15,15 @@ setmetatable(_G.thread, {__index = thread, __newindex = function() error("Access
 local threads = {}
 local pullingThreads = {}
 local tid = 1
+
+local function wrapThreadFunc(f)
+	return function(...)
+		local r = table.pack(xpcall(f, function(s) return tostring(s).."\n"..debug.traceback() end))
+		if (not r[1]) then return false, r[2] end
+		return true, table.unpack(r, 2, r.n)
+	end
+end
+
 function thread.new(priority, f)
 	local newThread = {
 		id = tid,
@@ -24,7 +33,7 @@ function thread.new(priority, f)
 		lastRun = 0,
 		yieldedAt = computer.uptime(),
 		priority = priority or 0, -- Threads with a higher priority value will be executed before threads with a lower priority value
-		routine = coroutine.create(f)
+		routine = coroutine.create(wrapThreadFunc(f))
 	}
 	threads[tid] = newThread
 	tid = tid + 1
@@ -160,6 +169,7 @@ end)
 
 
 local runtimes = {}
+local debugReplace = function() return "" end
 function thread.threadTick() -- DO NOT USE INSIDE THREADS, THIS WILL BREAK THINGS
 	thread.current = 0
 	local e = event.pull("thread_resumed", getNearest() - computer.uptime())
@@ -172,16 +182,22 @@ function thread.threadTick() -- DO NOT USE INSIDE THREADS, THIS WILL BREAK THING
 				thread.current = t.id
 				t.state = thread.running
 				local timeSince = computer.uptime() - t.yieldedAt
-				local s,r = coroutine.resume(t.routine, timeSince) -- Pass the time since the thread yielded
+				local r1,r2,r3 = coroutine.resume(t.routine, timeSince) -- Pass the time since the thread yielded
 				thread.current = 0
-				if (s and t.state ~= thread.dead and coroutine.status(t.routine) ~= "dead") then -- Kill the thread if it errored or was manually killed during execution
+				if (r1 and (r2 ~= false) and t.state ~= thread.dead and coroutine.status(t.routine) ~= "dead") then -- Kill the thread if it errored or was manually killed during execution
 					if (t.state == thread.runnning) then t.state = thread.waiting end
 					t.yieldedAt = computer.uptime()
 					t.lastRun = os.clock() - beforeExec
+				elseif (t.state ~= thread.dead or coroutine.status(t.routine) == "dead") then
+					t.state = thread.dead
+					threads[t.id] = nil
 				else
 					t.state = thread.dead
 					threads[t.id] = nil
-					error(r)
+					local otb = debug.traceback
+					debug.traceback = debugReplace
+					error(tostring(r1).." "..tostring(r2).." "..tostring(r3)) -- TODO: Generate an event rather than erroring, let the unwritten Process module handle the error
+					debug.traceback = otb
 				end
 			end
 		end

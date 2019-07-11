@@ -46,4 +46,32 @@ do -- This is relying on the boot filesystem API, implemented in init.lua (DO NO
 	
 end
 
+-- Generate a lookup table for quick key-based lookups
+function lookuptable(...)
+	local tArgs = {...}
+	local t = {}
+	for i=1,#targs do t[tArgs[i]] = true end
+	return t
+end
+
+-- Create a shallow copy of a table
+function shallowCopy(source)
+	local dest = {}
+	for i,p in pairs(source) do dest[i] = p end
+	return dest
+end
+
+-- Shallow-compare two tables
+local shallowCompare(t1, t2)
+	if (type(t1) ~= "table" or type(t2) ~= "table") then return false end
+	for i,p in pairs(t1) do if (t2[i] ~= p) then return false end end
+	for i,p in pairs(t2) do if (t1[i] ~= p) then return false end end
+	return true
+end
+
+
+
+
+
+
 

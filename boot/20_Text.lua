@@ -1,6 +1,9 @@
 -- Text Library --
 text = {}
 do
+	local lowerchars = "0123456789abcdefghijklmnopqrstuvwxyz"
+	text.lowerchars = lowerchars
+	
 	text.split = function(s, d)
 		local r = {}
 		for m in (s..d):gmatch("(.-)"..d) do
@@ -27,6 +30,16 @@ do
 	text.padRight = function(s,n,c)
 		return s..string.rep(c,n-s:len())
 	end
+	
+	local uuidformat = "########-####-####-####-############"
+	local function uuidchar()
+		local i = math.random(1, #lowerchars)
+		return lowerchars:sub(i,i)
+	end
+	text.uuid = function()
+		return string.gsub(uuidformat, "#", uuidchar)
+	end
+	
 	-- Split text into runs. Commands are placed inside braces, (ex. {command:value command2:value2}) braces may be escaped by doubling them.  Two braces enclosing an integer (ex. {1}) will be replaced by the corresponding argument (ex. '{{') Example string: "{b:0xCCCCCC f:0x0000FF} blue on grey {b:0x000000 f:0xFFFFFF} white on black {0}"
 	text.formattedRuns = function(str, ...) 
 		local vars = {...}

@@ -8,6 +8,7 @@ sml = {
 		lt = "<",
 	}
 }
+
 do
 	local tagTypeOpen = 0
 	local tagTypeSelfTerminate = 1

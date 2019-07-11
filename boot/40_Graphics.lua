@@ -106,6 +106,12 @@ local function truncateCall(call, vx, vy, vmx, vmy) -- Truncate a call to a view
 end
 gl.truncateCall = truncateCall
 
+local gpick = function(c1, c2, c3) -- Pick from 3 values depending on GPU tier
+	local tier = gl.getGPUTier()
+	return ((tier == 1) and c1 or ((tier == 2) and c2 or ((tier == 3) and c3 or c1)))
+end
+gl.gpick = gpick
+
 local function doDrawCalls(calls, report) -- Perform a list of draw calls.  Call Format: {callName, x, y[,w, h], bcol, fcol, txt} If report is true, a summary of the calls will be appended to log/graphics.log
 	if (report) then os.log(logf, "Starting new draw cycle") end
 	local timebefore = os.clock()

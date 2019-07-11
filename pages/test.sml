@@ -16,3 +16,7 @@
 <page tier="2">
 	<frame id="f1" pos="1,1" size="30,30" text="Low-resolution page" textcolor="FF0000" fcolor="AAAAAA"/>
 </page>
+
+<page tier="1">
+	<frame id="f1" pos="1,1" size="30,10" text="VERY Low-resolution page" textcolor="FF0000" fcolor="AAAAAA"/>
+</page>
