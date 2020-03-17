@@ -62,7 +62,7 @@ function shallowCopy(source)
 end
 
 -- Shallow-compare two tables
-local shallowCompare(t1, t2)
+local shallowCompare = function(t1, t2)
 	if (type(t1) ~= "table" or type(t2) ~= "table") then return false end
 	for i,p in pairs(t1) do if (t2[i] ~= p) then return false end end
 	for i,p in pairs(t2) do if (t1[i] ~= p) then return false end end
