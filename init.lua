@@ -45,7 +45,7 @@ if (not boot:exists("boot") or not boot:isDirectory("boot")) then error("/boot d
 
 for i=0, 100 do
 	for j,p in pairs(boot:list("boot")) do
-		if (j ~= "n" and p:find(".lua$") and p:sub(0,tostring(i):len()) == tostring(i)) then
+		if (j ~= "n" and p:find(".lua$") and p:sub(0,tostring(i):len()-1) == tostring(i)) then
 			local s,r = boot:dofile("/boot/"..p)
 			if (not s) then error("Error loading /boot/"..p..":\n"..r) end
 		end
