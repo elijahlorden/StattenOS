@@ -43,9 +43,9 @@ end
 
 if (not boot:exists("boot") or not boot:isDirectory("boot")) then error("/boot directory missing") end
 
-for i=0, i < 100 do
+for i=0, 100 do
 	for j,p in pairs(boot:list("boot")) do
-		if (i ~= "n" and p:find(".lua$") and p:find(tostring(i))) then
+		if (j ~= "n" and p:find(".lua$") and p:find(tostring(i))) then
 			local s,r = boot:dofile("/boot/"..p)
 			if (not s) then error("Error loading /boot/"..p..":\n"..r) end
 		end
