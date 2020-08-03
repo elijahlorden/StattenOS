@@ -38,20 +38,25 @@ function boot:dofile(p)
 	if (not r[1]) then return false, r[2] end
 	return true, table.unpack(r, 2, r.n)
 end
-
-
-
-if (not boot:exists("boot") or not boot:isDirectory("boot")) then error("/boot directory missing") end
-local bootlist = boot:list("boot")
-for i=0, 1000 do
-	for j,p in pairs(bootlist) do
-		if (j ~= "n" and p:find(".lua$") and p:find(tostring(i),1,true) == 1) then
-			local s,r = boot:dofile("/boot/"..p)
-			if (not s) then error("Error loading /boot/"..p..":\n"..r) end
-		end
-	end
+local function loadboot(p)
+	local s,r = boot:dofile("/boot/"..p)
+	if (not s) then error("Error loading /boot/"..p..":\n"..r) end
 end
-bootlist = nil
+loadboot("0_Event.lua")
+loadboot("1_StattenOS.lua")
+loadboot("2_Class.lua")
+loadboot("10_Component.lua")
+loadboot("20_Text.lua")
+loadboot("30_Thread.lua")
+loadboot("38_SML.lua")
+loadboot("40_Graphics.lua")
+loadboot("41_Controls.lua")
+loadboot("42_Desktop.lua")
+loadboot("999_Start.lua")
+loadboot = nil
+
+
+
 --for i,p in pairs(boot:list("boot")) do
 --	if (i ~= "n" and p:find(".lua$")) then
 --		local s,r = boot:dofile("/boot/"..p)
