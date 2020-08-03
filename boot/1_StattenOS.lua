@@ -50,7 +50,7 @@ end
 function lookuptable(...)
 	local tArgs = {...}
 	local t = {}
-	for i=1,#targs do t[tArgs[i]] = true end
+	for i=1,#tArgs do t[tArgs[i]] = true end
 	return t
 end
 
