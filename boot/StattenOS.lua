@@ -22,25 +22,29 @@ do -- This is relying on the boot filesystem API, implemented in init.lua (DO NO
 	end
 	
 	local bootfs = boot -- TODO: Remove this when the real filesystem library is implemented
-	
+    
 	local lastLog, lastLogHandle = "", nil
 	local mainlog
 	os.log = function(f, s)
 		if (not bootfs:exists("log/") or not bootfs:isDirectory("log/")) then bootfs:makeDirectory("log/") end
-		if (not mainlog) then mainlog = bootfs:open("log/log.log", "a") end
-		local path = "log/"..f..".log"
-		local h,r
-		if (lastLog == f) then
-			h = lastLogHandle
-		else
-			h,r = bootfs:open(path, "a")
-			if (lastLogHandle) then boot:close(lastLogHandle) end
-			lastLog = f
-			lastLogHandle = h
-		end
-		if (h) then
-			bootfs:write(h, s.."\n")
-		end
+		if (not mainlog) then mainlog = bootfs:open("log/log.log", "w") end
+        if (f ~= nil and s ~= nil) then
+            local path = "log/"..f..".log"
+            local h,r
+            if (lastLog == f) then
+                h = lastLogHandle
+            else
+                h,r = bootfs:open(path, "a")
+                if (lastLogHandle) then boot:close(lastLogHandle) end
+                lastLog = f
+                lastLogHandle = h
+            end
+            if (h) then
+                bootfs:write(h, tostring(s).."\n")
+            end
+        else
+            s = tostring(f)
+        end
 		bootfs:write(mainlog, s.."\n")
 	end
 	
@@ -62,7 +66,7 @@ function shallowCopy(source)
 end
 
 -- Shallow-compare two tables
-local shallowCompare(t1, t2)
+local function shallowCompare(t1, t2)
 	if (type(t1) ~= "table" or type(t2) ~= "table") then return false end
 	for i,p in pairs(t1) do if (t2[i] ~= p) then return false end end
 	for i,p in pairs(t2) do if (t1[i] ~= p) then return false end end

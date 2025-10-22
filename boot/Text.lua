@@ -4,13 +4,14 @@ do
 	local lowerchars = "0123456789abcdefghijklmnopqrstuvwxyz"
 	text.lowerchars = lowerchars
 	
-	text.split = function(s, d)
+    local function split(s, d)
 		local r = {}
 		for m in (s..d):gmatch("(.-)"..d) do
 			table.insert(r, m)
 		end
 		return r
 	end
+	text.split = split
 	
 	local function detabpad(s)
 		return s..string.rep(" ", s:len()%8)
@@ -22,6 +23,36 @@ do
 		if (not s:find("\t")) then return s end
 		return string.gsub(s, "([^\n]-)\t", detabpad)
 	end
+    
+    local function trim(s)
+        return s:match("^%s*(.-)%s*$")
+    end
+    text.trim = trim
+    
+    local function wrappedLines(str, width, skipNewlineCheck)
+        if (not skipNewlineCheck and str:find("\n")) then
+            local l = split(str, "\n")
+            local r = {}
+            for i=1,#l do
+                local rl = {wrappedLines(l[i], width, true)}
+                for o = 1,#rl do table.insert(r, rl[o]) end
+                table.insert(r, "\n")
+            end
+            return table.unpack(r)
+        end
+        str = trim(str)
+        if (#str <= width) then return str end
+        local idx = str:find(" ", -1, true)
+        if (not idx) then idx = width end
+        local before = str:sub(1, idx)
+        local after = str:sub(idx + 1)
+        return before, "\n", wrappedLines(after, width)
+    end
+    text.wrappedLines = wrappedLines
+    
+    text.wrap = function(str, width)
+        return table.concat({wrappedLines(str, width)})
+    end
 	
 	text.padLeft = function(s,n,c)
 		return string.rep(c,n-s:len())..s
