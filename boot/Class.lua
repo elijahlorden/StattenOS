@@ -4,7 +4,7 @@ do
 	local function ins_isA(s, o) return Class.isA(s, o) end
     
     local function buildClass(_, callback, baseClass)
-        local methods = { isA = ins_isA }
+        local members = { isA = ins_isA }
         local getters = {}
         local setters = {}
         local init = nil
@@ -13,7 +13,7 @@ do
         
         if (baseClass) then
             baseProxy = { getters = baseClass.getters, setters = baseClass.setters }
-            for i,p in pairs(baseClass.methods) do methods[i] = p baseProxy[i] = p end
+            for i,p in pairs(baseClass.members) do members[i] = p baseProxy[i] = p end
             for i,p in pairs(baseClass.getters) do getters[i] = p end
             for i,p in pairs(baseClass.setters) do setters[i] = p end
             if (baseClass.len) then
@@ -21,7 +21,7 @@ do
                 len = baseClass.len
             end
             if (baseClass.init) then
-                setmetatable(baseProxy, { __call = function(_, ...) baseClass.init(...) end })
+                setmetatable(baseProxy, { __call = function(_, ...) baseClass.init(...) end, __index = baseClass.members })
             end
         end
         
@@ -40,13 +40,13 @@ do
                     end
                 })
             end,
-            __newindex = function(_, methodName, v)
-                if (methodName == "init") then
+            __newindex = function(_, memberName, v)
+                if (memberName == "init") then
                     init = v
-                elseif (methodName == "len") then
+                elseif (memberName == "len") then
                     len = v
                 else
-                    methods[methodName] = v
+                    members[memberName] = v
                 end
             end
         }), baseProxy);
@@ -54,17 +54,18 @@ do
         local proxymt = {
             __index = function(t, k)
                 if (getters[k]) then return getters[k](t) end
-                return methods[k] or t._ins[k]
+                if (members[k] ~= nil) then return members[k] end
+                return t._ins[k]
             end,
             __newindex = function(t, k, v)
                 if (setters[k]) then return setters[k](t, v) end
-                if (getters[k]) then error("Attempted to set read-only property "..k, 2) end
+                if (getters[k] or members[k]) then error("Attempted to set read-only member "..k, 2) end
                 t._ins[k] = v
             end,
             __len = function(t) return len and len(t._ins) or #t._ins end
         }
         
-        local classObj = { _src = Class, methods = methods, getters = getters, setters = setters, init = init, len = len, base = baseClass, inheritMap = {}, extend = function(s, cb) return buildClass(Class, cb, s) end, isA = ins_isA }
+        local classObj = { _src = Class, members = members, getters = getters, setters = setters, init = init, len = len, base = baseClass, inheritMap = {}, extend = function(s, cb) return buildClass(Class, cb, s) end, isA = ins_isA }
         if (baseClass) then
             classObj.inheritMap[baseClass] = true
             for i=1,#baseClass.inheritMap do classObj.inheritMap[baseClass.inheritMap[i]] = true end

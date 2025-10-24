@@ -157,6 +157,7 @@ do
     -- ======================= [ Tag base class ] ======================= --
     
     local Tag = Class(function(Tag)
+        Tag.ordered = false
         
         function Tag.document:get() return self._document end
         
@@ -245,162 +246,25 @@ do
     
     -- ======================= [ Document class ] ======================= --
     
-    local Document = Class(function(Document)
+    local Document = Tag:extend(function(Document, base)
+        Document.ordered = true
+        
+        function Document.document:get() return self end
         
         function Document.parent:get() return nil end
-        function Document.document:get() return self end
+        function Document.parent:set() error("Attempted to set the parent of a document object", 3) end
+        
+        function Document:appendTo() error("Attempted append a document object") end
         
         function Document:findById(id)
             return self._idMap[id]
         end
         
-        function Document:init()
+        function Document:init(...)
+            base(self, ...)
             self._idMap = {}
-            self._childrenMap = {}
-            self._dirty = false
         end
-        
     end)
     Markup.Document = Document
-    
-    
-    --[=[
-    
-    local Tag = {}
-    Tag.__index = Tag
-    
-    function Tag:getParent() return self._parent end
-    
-    function Tag:append(newChild)
-        if (not self._document) then
-            if (newChild._parent) then newChild._parent:remove(newChild) end
-            newChild._parent = self
-            table.insert(self, newChild)
-            self._childrenMap[newChild] = #self
-            return self
-        end
-        self._document._addTag(newChild, self)
-        return self
-    end
-    
-    function Tag:appendTo(newParent)
-        newParent:append(self)
-        return self
-    end
-    
-    function Tag:remove(child)
-        if (not self._document) then
-            local childIdx = parent._childrenMap[child]
-            if (not childIdx) then error("Attempted to remove a non-child tag", 2) end
-            self[childIdx] = self[#self] -- Swap and pop
-            parent._childrenMap[parent[childIdx]] = childIdx
-            table.remove(self)
-            tag._parent = nil
-            return self
-        end
-        self._document:remove(child)
-        return self
-    end
-    
-    function Tag:isDescendantOf(other)
-        if (other == self._parent or other == self._document) then return true end
-        if (not self._parent or other._document ~= self._document) then return false end
-        if (self._parent == self._document) then return false end
-        return self._parent:isDescendantOf(other)
-    end
-    
-    function Tag:setId(id)
-        if (self._document and self._document._idMap[self._id]) then self._document._idMap[self._id] = nil end
-        if (self._document) then self._document._idMap[id] = self end
-        self._id = id
-        return self
-    end
-    
-    function Tag:getId() return self._id end
-    
-    function Tag:markDirty()
-        self._dirty = true
-        local p = self._parent
-        if (p and not p._dirty) then p:markDirty() end
-        return self
-    end
-    
-    function Tag.new()
-        return setmetatable({ _childrenMap = {}, _document = nil, _dirty = false }, Tag)
-    end
-    Markup.Tag = Tag
-    
-    -- ======================= [ Document class ] ======================= --
-    
-    local Document = {}
-    Document.__index = Document
-    
-    function Document:_addTag(tag, parent, _skipReparent)
-        if (not _skipReparent) then
-            if (tag._parent) then tag._parent:remove(tag) end
-            table.insert(parent, tag)
-            parent._childrenMap[tag] = #parent
-            tag._parent = parent
-        end
-        os.log("test")
-        self._tagMap[tag] = true
-        if (tag._id) then self._idMap[tag._id] = tag end
-        for i=1,#tag do self:_addTag(tag[i], tag, true) end
-        tag._document = self
-    end
-    
-    function Document:append(tag)
-        self:_addTag(tag, self)
-    end
-    
-    function Document:remove(tag, _skipUnparent)
-        if (not self._tagMap[tag]) then error("Attempted to remove a tag not contained in this document", 2) end
-        local parent = tag._parent
-        if (not _skipUnparent) then -- Don't un-parent ancestor tags
-            local childIdx = parent._childrenMap[tag]
-            parent[childIdx] = parent[#parent] -- Swap and pop
-            parent._childrenMap[parent[childIdx]] = childIdx
-            table.remove(parent)
-            tag._parent = nil
-        end
-        if (parent == self) then tag._parent = nil end
-        self._tagMap[tag] = nil
-        if (tag._id) then self._idMap[tag._id] = nil end
-        for i=1,#tag do self:remove(tag[i], true) end
-        tag._document = nil
-    end
-    
-    function Document:findById(id)
-        return self._idMap[id]
-    end
-    
-    function Document.new()
-        return setmetatable({ _tagMap = {}, _idMap = {}, _childrenMap = {}, _dirty = false }, Document)
-    end
-    Markup.Document = Document
-    
-    --]=]
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
 end

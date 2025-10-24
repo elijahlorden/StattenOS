@@ -26,6 +26,17 @@ end
 
 os.log("Start!")
 
+local pool1 = Pool()
+local o = {}
+pool1:add(o)
+pool1:add({})
+pool1:add({})
+os.log(#pool1)
+pool1:remove(o)
+os.log(#pool1)
+
+
+--[[
 local Class1 = Class(function(Class1)
 
     function Class1.prop:get()
@@ -79,8 +90,9 @@ tag3.id = "tag3"
 
 tag1.parent = doc
 tag2.parent = tag1
-os.log(doc:findById("tag2"))
-
+os.log(doc:findById("tag2").ordered)
+os.log(doc.ordered)
+--]]
 
 --[[
 
@@ -114,22 +126,11 @@ end)
 
 --gpu.set(1,19,tostring(computer.uptime() - start))
 
-local tid = thread.new(1, function()
-	local times = 0
-	while true do
-		--gl.getGPU().set(60,2,tostring(times))
-		local t, e, a, b, c, d = thread.pullEvent("key_down", math.huge)
-		--gl.getGPU().set(60,3,tostring(e))
-		times = times + 1
-	end
-end)
-thread.resume(tid)
+Thread(function()
+    while true do
+        local deltaTime, signal, addr, keyChar, keyCode, player = Thread.pull("key_down")
+        os.log("Key: "..keyChar)
+    end
+end):resume()
 
-local threadTick = thread.threadTick
-while(true) do
-	threadTick()
-end
-
-
-
-
+Thread._autoUpdate()

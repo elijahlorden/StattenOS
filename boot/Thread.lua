@@ -1,3 +1,229 @@
+do
+    local activeThreads = Pool()
+    local sleepingThreads = Pool()
+    local pullingThreads = Pool()
+    local signalPools = {}
+    local dirtyThreads = Pool()
+    
+    -- ================================= Thread Class ================================= --
+    
+    local Thread = Class(function(Thread)
+
+        function Thread.state:get() return self._state end -- States: suspended, sleeping, pulling, active, dead
+        
+        function Thread:init(f)
+            self._state = "suspended"
+            self._coroutine = coroutine.create(f)
+        end
+        
+        function Thread:kill()
+            if (self._state == "dead") then return end
+            dirtyThreads:add(self)
+            self._state = "dead"
+        end
+        
+        function Thread:resume()
+            if (self._state == "active" || self._state == "dead") then return end
+            dirtyThreads:add(self)
+            self._state = "active"
+        end
+        
+        function Thread:suspend()
+            if (self._state == "suspended" || self._state == "dead") then return end
+            dirtyThreads:add(self)
+            self._state = "suspended"
+            if (_G.Thread._current == self) then self._yieldedAt = computer.uptime() return coroutine.yield() end
+        end
+        
+        function Thread:sleep(t)
+            if (self._state == "dead") then return end
+            dirtyThreads:add(self)
+            self._state = "sleeping"
+            self._resumeAt = computer.uptime() + t
+            if (_G.Thread._current == self) then self._yieldedAt = computer.uptime() return coroutine.yield() end
+        end
+        
+        function Thread:pullEvent(signals, timeout)
+            if (self._state == "dead") then return end
+            dirtyThreads:add(self)
+            self._state = "pulling"
+            self._pullSignals = type(signals) == "table" and signals or { signals }
+            self._resumeAt = computer.uptime() + (timeout or math.huge)
+            if (_G.Thread._current == self) then self._yieldedAt = computer.uptime() return coroutine.yield() end
+        end
+        
+    end)
+    
+    -- ================================= Current Thread Functions ================================= --
+    
+    function Thread.yield()
+        if (not Thread._current) then error("Attemped to call Thread.suspend() from the main thread", 2) end
+        if (Thread._current._state ~= "active") then Thread._current:resume() end
+        return coroutine.yield()
+    end
+    
+    function Thread.suspend()
+        if (not Thread._current) then error("Attemped to call Thread.suspend() from the main thread", 2) end
+        Thread._current:suspend()
+    end
+    
+    function Thread.sleep(t)
+        if (not Thread._current) then error("Attemped to call Thread.sleep() from the main thread", 2) end
+        Thread._current:sleep(t)
+    end
+    
+    function Thread.pull(signals, timeout)
+        if (not Thread._current) then error("Attemped to call Thread.pull() from the main thread", 2) end
+        Thread._current:pullEvent()
+    end
+    
+    -- ================================= Internal Functions ================================= --
+    
+    Thread._current = nil
+    Thread.maxTime = 5 -- Default yield timeout
+    
+    local function processDirtyThreads()
+        while (#dirtyThreads > 0) do
+            local dirtyThread = dirtyThread[#dirtyThreads]
+            -- Remove from old pool
+            if (dirtyThread._state ~= "active") then activeThreads:remove(dirtyThread) end
+            if (dirtyThread._state ~= "sleeping") then sleepingThreads:remove(dirtyThread) end
+            if (dirtyThread._state ~= "pulling" and pullingThreads:contains(dirtyThread)) then
+                pullingThreads:remove(dirtyThread)
+                local dirtySignals = dirtyThread._pullSignals
+                for i=1,#dirtySignals do
+                    local pool = signalPools[dirtySignals[i]]
+                    if (pool) then pool:remove(dirtyThread) end
+                end
+            end
+            -- Add to new pool
+            if (dirtyThread._state == "active") then activeThreads:add(dirtyThread) end
+            if (dirtyThread._state == "sleeping") then
+                sleepingThreads:add(dirtyThread)
+                Thread.minResumeTime = math.min(Thread.minResumeTime, dirtyThread.resumeAt)
+            end
+            if (dirtyThread._state == "pulling" and not pullingThreads:contains(dirtyThread)) then
+                pullingThreads:add(dirtyThread)
+                Thread.minResumeTime = math.min(Thread.minResumeTime, dirtyThread.resumeAt)
+                local dirtySignals = dirtyThread._pullSignals
+                for i=1,#dirtySignals do
+                    local pool = signalPools[dirtySignals[i]]
+                    if (pool) then pool:add(dirtyThread) end
+                end
+            end
+            dirtyThreads:remove(dirtyThread)
+        end
+    end
+    
+    local function resumeThread(thread, ...)
+        local co = thread._coroutine
+        if (coroutine.status(co) == "dead") then
+            if (thread._state ~= "dead") then thread:kill() end
+            return
+        else if (thread._state ~= "active") then
+            thread:resume()
+        end
+        local timeSinceYield = thread._yieldedAt and (thread.yieldedAt - computer.uptime()) or 0
+        Thread._current = thread
+        local ok, err = coroutine.resume(co, timeSinceYield, ...)
+        Thread._current = nil
+        if (not ok and Thread._onError) then Thread._onError(thread, err, debug.traceback(co)) end
+        if (coroutine.status(co) == "dead") then
+            thread:kill()
+        end
+        if (Thread._state == "sleeping" or Thread._state == "pulling") then Thread.minResumeTime = math.min(Thread.minResumeTime, thread.resumeAt) end
+    end
+    
+    Event.listenAll(function(signal, ...)
+        local pool = signalPools[signal]
+        if (not pool or #pool == 0) then return end
+        for i=1,#pool do
+            resumeThread(pool[i], signal, ...)
+        end
+        processDirtyThreads()
+    end)
+    
+    function Thread._update()
+        local signal = table.pack(computer.pullSignal(math.max(0, Thread.minResumeTime - computer.uptime())))
+        local startTime = os.clock()
+        local resumedThreads = {}
+        Thread.minResumeTime = math.huge
+        
+        local signalThreads = signalPools[signal[1]]
+        if (signalThreads) then
+            (function(...)
+                for i=1,#signalThreads do
+                    local thread = signalThreads[i]
+                    resumeThread(thread, ...)
+                    resumedThreads[thread] = true
+                end
+            end)(table.unpack(signal)) -- IIFE to avoid unpacking for every thread
+        end
+        
+        for i=1,#pullingThreads do
+            local thread = pullingThreads[i]
+            if (not resumedThreads[thread}) then
+                if (startTime > thread._resumeAt) then
+                    resumeThread(thread)
+                else
+                    Thread.minResumeTime = math.min(Thread.minResumeTime, thread.resumeAt)
+                end
+            end
+        end
+        
+        for i=1,#sleepingThreads do
+            local thread = sleepingThreads[i]
+            if (startTime > thread._resumeAt) then
+                resumeThread(thread)
+            else
+                Thread.minResumeTime = math.min(Thread.minResumeTime, thread.resumeAt)
+            end
+        end
+        
+        processDirtyThreads()
+        
+        Thread.lastTime = os.clock() - startTime
+        Thread.usage = Thread.lastTime / Thread.maxTime
+    end
+    
+    function Thread._autoUpdate()
+        Thread.minResumeTime = 0
+        while true do
+            Thread.update()
+        end
+    end
+    
+    _G.Thread = Thread
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -- StattenOS Thread API --
 local thread = {
 	current = 0, -- current thread (Id 0 is the thread scheduler itself)

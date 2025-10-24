@@ -46,10 +46,11 @@ do
     if (not s) then error("Error loading /boot/Text.lua:\n"..r) end
     
     local bootList = {
+        "Class.lua",
+        "Pool.lua",
         "Text.lua",
         "Event.lua",
         "StattenOS.lua",
-        "Class.lua",
         "Component.lua",
         "Thread.lua",
         "StringEnumerator.lua",
