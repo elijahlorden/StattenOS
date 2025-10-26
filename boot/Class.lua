@@ -2,6 +2,10 @@ Class = {}
 
 do
 	local function ins_isA(s, o) return Class.isA(s, o) end
+    function Class.tableAddress(tbl)
+        local s = tostring(tbl)
+        return s:sub(s:find(' ') + 1)
+    end
     
     local function buildClass(_, callback, baseClass)
         local members = { isA = ins_isA }

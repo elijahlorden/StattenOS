@@ -27,11 +27,10 @@ Pool = Class(function(Pool)
     end
     
     function Pool:contains(v)
-        return self._map[v} ~= nil
+        return self._map[v] ~= nil
     end
     
     function Pool:init()
-        os.log("init")
         self._map = {}
     end
     

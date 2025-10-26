@@ -26,6 +26,12 @@ end
 
 os.log("Start!")
 
+function formatMemory(n)
+    return string.format("%.1fkB", n/1024)
+end
+
+os.log(formatMemory(computer.totalMemory() - computer.freeMemory()).." / "..formatMemory(computer.totalMemory()))
+
 local pool1 = Pool()
 local o = {}
 pool1:add(o)
@@ -120,17 +126,19 @@ os.log(doc:findById("tag3"):isDescendantOf(doc:findById("tag4")))
 
 local start = computer.uptime()
 
-event.listen("touch", function(e, a, x, y, b, p)
-    
+event.listen("key_up", function(e, a, x, y, b, p)
+    os.log("Key up event")
 end)
 
 --gpu.set(1,19,tostring(computer.uptime() - start))
 
 Thread(function()
+    local deltaTime, signal, addr, keyChar, keyCode, player = Thread.pull("key_down")
+    os.log("Key down: "..keyChar)
     while true do
-        local deltaTime, signal, addr, keyChar, keyCode, player = Thread.pull("key_down")
-        os.log("Key: "..keyChar)
+        deltaTime, signal, addr, keyChar, keyCode, player = Thread.pull("key_up")
+        os.log("Key up: "..keyChar)
     end
-end):resume()
+end, "test"):resume()
 
 Thread._autoUpdate()
