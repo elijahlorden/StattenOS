@@ -50,12 +50,13 @@ do
         "Pool.lua",
         "Text.lua",
         "Event.lua",
-        "StattenOS.lua",
-        "Component.lua",
         "Thread.lua",
+        "Component.lua",
+        "Filesystem.lua",
         "StringEnumerator.lua",
         "Queue.lua",
         "Markup.lua",
+        "StattenOS.lua",
         "Start.lua"
     }
     

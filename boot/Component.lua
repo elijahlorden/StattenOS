@@ -1,6 +1,6 @@
 do
     local primaries = {}
-    setmetatable(component, { __index = primaries })
+    setmetatable(component, { __index = function(_, idx) return component.getPrimary(idx) end })
     
     component.get = function(partial, ctype)
         checkArg(1, partial, "string")
@@ -18,14 +18,34 @@ do
     event.listen("component_removed", function(_, address, componentType)
         if (primaries[componentType] and primaries[componentType].address == address) then
             primaries[componentType] = nil
-            component.setPrimary(componentType, component.list(componentType, true))
+            component.setPrimary(componentType, component.list(componentType, true)())
         end
     end)
     
     component.setPrimary = function(componentType, address)
-        
+        checkArg(1, componentType, "string")
+        checkArg(2, address, "string", "nil")
+        local current = primaries[componentType]
+        if (current and current.address == address) then return current end
+        local proxy, err = component.proxy(address)
+        if (not proxy) then return nil, err end
+        primaries[componentType] = proxy
+        return proxy
     end
     
+    component.getPrimary = function(componentType)
+        checkArg(1, componentType, "string")
+        if (not primaries[componentType]) then
+            component.setPrimary(componentType, component.list(componentType, true)())
+        end
+        return primaries[componentType]
+    end
+    
+    component.isPrimary = function(address)
+        checkArg(1, address, "string")
+        local componentType = component.type(address)
+        return componentType ~= nil and primaries[componentType] ~= nil
+    end
     
 end
 
