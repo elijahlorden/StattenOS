@@ -9,7 +9,7 @@ do
         return nil, "component not found"
     end
     
-    -- =================== [Primary Component Stuff] =================== -
+    -- =================== [Primary Component Stuff] =================== --
     
     event.listen("component_added", function(_, address, componentType)
         if (not primaries[componentType]) then primaries[componentType] = component.proxy(address) end

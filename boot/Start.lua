@@ -132,6 +132,18 @@ end)
 
 --gpu.set(1,19,tostring(computer.uptime() - start))
 
+--os.log(fs.exists("main:/boot/Class.lua"))
+
+os.log(fs.isDirectory("main:/boot/"))
+os.log(fs.isDirectory("8a4c2c4d-6cd9-4da4-9363-464c807628c3:/boot/"))
+os.log(fs.isDirectory("8a4c2c4d-6cd9-4da4-9363-464c807628c3", "boot/"))
+os.log(fs.disks.tmpfs.spaceTotal())
+
+for disk in fs.disks() do os.log(disk.address) end
+--os.log(fs.disks()())
+
+
+--[[
 Thread(function()
     local deltaTime, signal, addr, keyChar, keyCode, player = Thread.pull("key_down")
     os.log("Key down: "..keyChar)
@@ -140,5 +152,6 @@ Thread(function()
         os.log("Key up: "..keyChar)
     end
 end, "test"):resume()
+--]]
 
 Thread._autoUpdate()
