@@ -13,6 +13,7 @@ do
         local setters = {}
         local init = nil
         local len = nil
+        local tostring_mt = nil
         local baseProxy = nil
         
         if (baseClass) then
@@ -20,9 +21,13 @@ do
             for i,p in pairs(baseClass.members) do members[i] = p baseProxy[i] = p end
             for i,p in pairs(baseClass.getters) do getters[i] = p end
             for i,p in pairs(baseClass.setters) do setters[i] = p end
-            if (baseClass.len) then
-                baseProxy.len = baseClass.len
+            if (baseClass.proxy.len) then
+                baseProxy.len = baseClass.proxy.len
                 len = baseClass.len
+            end
+            if (baseClass.proxy.tostring_mt) then
+                baseProxy.tostring = baseClass.proxy.tostring_mt
+                tostring_mt = baseClass.tostring_mt
             end
             if (baseClass.init) then
                 setmetatable(baseProxy, { __call = function(_, ...) baseClass.init(...) end, __index = baseClass.members })
@@ -49,6 +54,10 @@ do
                     init = v
                 elseif (memberName == "len") then
                     len = v
+                elseif (memberName == "gc") then
+                    gc = v
+                elseif (memberName == "tostring") then
+                    tostring_mt = v
                 else
                     members[memberName] = v
                 end
@@ -66,19 +75,20 @@ do
                 if (getters[k] or members[k]) then error("Attempted to set read-only member "..k, 2) end
                 t._ins[k] = v
             end,
-            __len = function(t) return len and len(t._ins) or #t._ins end
+            len = len,
+            tostring_mt = tostring_mt,
+            __len = function(t) return len and len(t._ins) or #t._ins end,
         }
         
-        local classObj = { _src = Class, members = members, getters = getters, setters = setters, init = init, len = len, base = baseClass, inheritMap = {}, extend = function(s, cb) return buildClass(Class, cb, s) end, isA = ins_isA }
-        if (baseClass) then
-            classObj.inheritMap[baseClass] = true
-            for i=1,#baseClass.inheritMap do classObj.inheritMap[baseClass.inheritMap[i]] = true end
-        end
+        if (tostring_mt) then proxymt.__tostring = function(t) return tostring_mt(t._ins) end end
+        
+        local classObj = { members = members, getters = getters, setters = setters, init = init, proxy = proxymt, base = baseClass, extend = function(s, cb) return buildClass(Class, cb, s) end, isA = ins_isA }
+        classObj._cls = classObj
         
         return setmetatable(classObj, {
             __call = function(_, ...)
                 local ins = {}
-                local obj = setmetatable({ _src = Class, _ins = ins, _cls = classObj }, proxymt)
+                local obj = setmetatable({ _ins = ins, _cls = classObj }, proxymt)
                 if (init) then init(obj, ...) end
                 return obj
             end
@@ -87,11 +97,15 @@ do
     
     Class.isA = function(obj, obj2)
         if (type(obj) ~= "table" or type(obj2) ~= "table") then return false end
-        if (obj._src ~= Class or obj2._src ~= Class) then return false end
-        local objClass = obj._cls or obj
+        local objClass = obj._cls
         if (obj2 == objClass) then return true end
-        local obj2Class = obj2._cls or obj2
-        return objClass.inheritMap[obj2Class] or false
+        local obj2Class = obj2._cls
+        if (not objClass or not obj2Class) then return false end
+        while (objClass) do
+            if (objClass == obj2Class) then return true end
+            objClass = objClass.base
+        end
+        return false
     end
 	
 	setmetatable(Class, {

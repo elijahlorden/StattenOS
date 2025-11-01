@@ -32,14 +32,6 @@ end
 
 os.log(formatMemory(computer.totalMemory() - computer.freeMemory()).." / "..formatMemory(computer.totalMemory()))
 
-local pool1 = Pool()
-local o = {}
-pool1:add(o)
-pool1:add({})
-pool1:add({})
-os.log(#pool1)
-pool1:remove(o)
-os.log(#pool1)
 
 
 --[[
@@ -134,13 +126,13 @@ end)
 
 --os.log(fs.exists("main:/boot/Class.lua"))
 
-os.log(fs.isDirectory("main:/boot/"))
-os.log(fs.isDirectory("8a4c2c4d-6cd9-4da4-9363-464c807628c3:/boot/"))
-os.log(fs.isDirectory("8a4c2c4d-6cd9-4da4-9363-464c807628c3", "boot/"))
-os.log(fs.disks.tmpfs.spaceTotal())
-
-for disk in fs.disks() do os.log(disk.address) end
---os.log(fs.disks()())
+local f = File("main:/test.txt")
+--f:open("w")
+--for i=1,1000 do f:write("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") end
+--f:close()
+local success, reason = f:move("main:/test2.txt")
+os.log(success)
+os.log(reason)
 
 
 --[[
@@ -153,5 +145,12 @@ Thread(function()
     end
 end, "test"):resume()
 --]]
+
+Thread(function()
+    while true do
+        Thread.sleep(30)
+        os.log(formatMemory(computer.totalMemory() - computer.freeMemory()).." / "..formatMemory(computer.totalMemory()))
+    end
+end):resume()
 
 Thread._autoUpdate()

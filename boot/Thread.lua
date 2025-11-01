@@ -71,6 +71,11 @@ do
         Thread._current:sleep(t)
     end
     
+    function Thread.elapsed()
+        if (not Thread._current) then return 0 end
+        return computer.uptime() - Thread._currentTime
+    end
+    
     function Thread.pull(signal, timeout)
         checkArg(1, signal, "string")
         checkArg(2, timeout, "nil", "string")
@@ -100,7 +105,9 @@ do
     -- ================================= Internal Functions ================================= --
     
     Thread._current = nil
+    Thread._currentTime = 0
     Thread.maxTime = 5 -- Default yield timeout
+
     
     local function processDirtyThreads()
         while (#dirtyThreads > 0) do
@@ -144,17 +151,18 @@ do
             return
         end
         --os.log("Resuming thread "..thread.name)
-        local timeSinceYield = thread._yieldedAt and (thread.yieldedAt - computer.uptime()) or 0
+        local timeSinceYield = thread._yieldedAt and (thread._yieldedAt - computer.uptime()) or 0
         Thread._current = thread
+        Thread._currentTime = computer.uptime()
         local ok, err = coroutine.resume(co, timeSinceYield, ...)
         Thread._current = nil
         if (not ok and Thread._onError) then Thread._onError(thread, err, debug.traceback(co)) end
         if (coroutine.status(co) == "dead") then
             thread:kill()
         end
-        if (thread.state == "active") then
+        if (thread._state == "active") then
             Thread.minResumeTime = 0
-        elseif (Thread._state == "sleeping" or Thread._state == "pulling") then
+        elseif (thread._state == "sleeping" or thread._state == "pulling") then
             Thread.minResumeTime = math.min(Thread.minResumeTime, thread._resumeAt)
         end
     end
@@ -163,7 +171,7 @@ do
         local signal = table.pack(computer.pullSignal(math.max(0, Thread.minResumeTime - computer.uptime())))
         --os.log("Update: "..tostring(signal[1]))
         event.dispatch(table.unpack(signal))
-        local startTime = os.clock()
+        local startTime = computer.uptime()
         local resumedThreads = {}
         Thread.minResumeTime = math.huge
         
@@ -191,7 +199,7 @@ do
         
         for i=1,#sleepingThreads do
             local thread = sleepingThreads[i]
-            if (startTime > thread._resumeAt) then
+            if (startTime >= thread._resumeAt) then
                 resumeThread(thread)
             else
                 Thread.minResumeTime = math.min(Thread.minResumeTime, thread._resumeAt)

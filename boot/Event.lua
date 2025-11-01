@@ -7,6 +7,7 @@ do
 	local clockavgs = {}
 	
 	local listeners = {}
+    event._listeners = listeners
 	local allListeners = Pool()
     local onceListeners = {}
 	
