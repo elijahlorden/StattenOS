@@ -29,6 +29,12 @@ do
     end
     text.trim = trim
     
+    local function trimStart(s)
+        s = s:gsub("^%s+", "")
+        return s
+    end
+    text.trimStart = trimStart
+    
     local function wrappedLines(str, width, skipNewlineCheck)
         if (not skipNewlineCheck and str:find("\n")) then
             local l = split(str, "\n")

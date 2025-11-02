@@ -126,13 +126,19 @@ end)
 
 --os.log(fs.exists("main:/boot/Class.lua"))
 
-local f = File("main:/test.txt")
---f:open("w")
---for i=1,1000 do f:write("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") end
---f:close()
-local success, reason = f:move("main:/test2.txt")
-os.log(success)
-os.log(reason)
+local f = File("main:/pages/TestPage.sml")
+f:open("r")
+local parts = {}
+while true do
+    local s = f:read(5000)
+    if (not s) then break end
+    table.insert(parts, s)
+end
+
+local tags = Markup.parse(table.concat(parts), "TestPage.sml")
+
+os.log(Markup.serialize(tags, false))
+os.log(Markup.serialize(tags, true))
 
 
 --[[
