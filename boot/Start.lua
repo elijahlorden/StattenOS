@@ -126,6 +126,16 @@ end)
 
 --os.log(fs.exists("main:/boot/Class.lua"))
 
+local tagClass = Markup.Tag:extend(function(t, base)
+    
+    function t:getTagProps(props)
+        table.insert(props, "title")
+        base.getTagProps(self, props)
+    end
+    
+end)
+
+
 local f = File("main:/pages/TestPage.sml")
 f:open("r")
 local parts = {}
@@ -135,7 +145,7 @@ while true do
     table.insert(parts, s)
 end
 
-local tags = Markup.parse(table.concat(parts), "TestPage.sml")
+local tags = Markup.parse(table.concat(parts), "TestPage.sml", { ["Tag"] = tagClass })
 
 os.log(Markup.serialize(tags, false))
 os.log(Markup.serialize(tags, true))

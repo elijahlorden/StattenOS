@@ -75,6 +75,8 @@ do
                 if (getters[k] or members[k]) then error("Attempted to set read-only member "..k, 2) end
                 t._ins[k] = v
             end,
+            __pairs = function(t) return pairs(t._ins) end,
+            __ipairs = function(t) return ipairs(t._ins) end,
             len = len,
             tostring_mt = tostring_mt,
             __len = function(t) return len and len(t._ins) or #t._ins end,

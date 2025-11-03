@@ -102,7 +102,7 @@ do
         error("Line "..tkn2.line..": Unexpected token '"..(tostring(tkn2.value)).."'")
     end
     
-    local function parseTag(filename, tokens, tagTypes) -- Match [TagType attr1: val attr2: "val" attr3: [...] [TagType ...]]
+    local function parseTag(filename, tokens, tagTypes, propCache) -- Match [TagType attr1: val attr2: "val" attr3: [...] [TagType ...]]
         local success, tkn1, tkn2
         local stack = {}
         local parent = nil
@@ -154,9 +154,17 @@ do
                 if (not k) then error("Line "..tkn1.line..": Unexpected token '"..(tkn1.value).."'") end
                 os.log("Attribute: "..k)
                 local class = parent._cls
-                if (parent._cls) then
-                    local setter = parent._cls.setters[k]
-                    if (setter) then setter(parent, v) end
+                if (parent._cls and parent.getTagProps) then
+                    local propList = propCache[parent._cls]
+                    if (not propList) then
+                        propList = {}
+                        parent:getTagProps(propList)
+                        local map = {}
+                        for i=1,#propList do os.log("prop: "..propList[i]) map[propList[i]] = true end
+                        propCache[parent._cls] = map
+                        propList = map
+                    end
+                    if (propList[k]) then parent[k] = v end
                 else
                     parent[k] = v
                 end
@@ -176,9 +184,10 @@ do
         local tokens = tokenizer(str)
         
         local tags = {}
+        local propCache = {}
         
         while (tokens.hasNext()) do
-            table.insert(tags, parseTag(filename, tokens, tagTypes))
+            table.insert(tags, parseTag(filename, tokens, tagTypes, propCache))
         end
         
         return tags
@@ -196,30 +205,44 @@ do
         callback(s)
     end
     
-    local function writeTag(tag, callback, indent, pretty)
+    local function writeProperty(k, v, callback, indent, pretty)
+        writeIndented(k, callback, indent + 1, pretty)
+        callback(": ")
+        if (type(v) == "string") then
+            callback('"')
+            callback(v)
+            callback('"')
+        elseif (type(v) == "number") then
+            callback(tostring(v))
+        end
+    end
+    
+    local function writeTag(tag, callback, indent, pretty, propCache)
         if (type(tag) == "string") then
             writeIndented('"', callback, indent, pretty)
             callback(tag)
             callback('"')
         elseif (type(tag) == "number") then
             writeIndented(tonumber(tag), callback, indent, pretty)
-        else
+        elseif (type(tag) == "table") then
             writeIndented("[", callback, indent, pretty)
             callback(tag.tag or "Tag")
-            if (tag._cls) then
-            
+            if (tag._cls and type(tag.getTagProps) == "function") then -- Use getTagProps() to get class properties and cache them
+                local propList = propCache[tag._cls]
+                if (not propList) then
+                    propList = {}
+                    tag:getTagProps(propList)
+                    propCache[tag._cls] = propList
+                end
+                for i=1,#propList do
+                    local k = propList[i]
+                    local v = tag[k]
+                    if (v) then writeProperty(k, v, callback, indent, pretty) end
+                end
             else
                 for i,p in pairs(tag) do -- Write attribute
                     if (type(i) == "string" and i ~= "tag" and i ~= "_line") then
-                        writeIndented(i, callback, indent + 1, pretty)
-                        callback(": ")
-                        if (type(p) == "string") then
-                            callback('"')
-                            callback(p)
-                            callback('"')
-                        elseif (type(p) == "number") then
-                            callback(tostring(p))
-                        end
+                        writeProperty(k, v, callback, indent, pretty)
                     end
                 end
             end
@@ -229,9 +252,6 @@ do
             writeIndented("]", callback, indent, pretty)
         end
     end
-    
-    
-    
     
     Markup.serialize = function(root, pretty)
         checkArg(1, root, "table")
@@ -249,19 +269,24 @@ do
             if (#parts > 256) then parts = { table.concat(parts) } end
         end
         
+        local propCache = {}
+        
         for i=1,#root do
-            writeTag(root[i], callback, 0, pretty)
+            writeTag(root[i], callback, 0, pretty, propCache)
             if (pretty and i ~= #root) then callback("\n") end
         end
         
         return table.concat(parts)
     end
     
-    
     -- ======================= [ Tag base class ] ======================= --
     
     local Tag = Class(function(Tag)
         Tag.ordered = false
+        
+        function Tag:getTagProps(props)
+            table.insert(propsm "id")
+        end
         
         function Tag.document:get() return self._document end
         
